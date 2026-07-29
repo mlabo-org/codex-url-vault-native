@@ -40,9 +40,7 @@
     ],
     "defaultPrompt": [
       "Open Codex URL Vault and show my saved URLs.",
-      "Show Codex URL Vault inside Codex Browser/IAB.",
-      "Find the saved URL about my current topic.",
-      "Save this URL to Codex URL Vault.",
+      "Show Codex URL Vault inside Codex Browser/IAB, then find or save URLs for my current task.",
       "Capture the current Chrome page in Codex URL Vault."
     ]
   },
