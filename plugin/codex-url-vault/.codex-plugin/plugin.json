@@ -1,7 +1,7 @@
 {
   "name": "codex-url-vault",
   "version": "0.1.0",
-  "description": "Native local URL library for saving, searching, importing, opening, categorizing, and preserving web references with Codex.",
+  "description": "Local URL library with a native macOS app, task-oriented MCP tools, and a card-based Codex Browser/IAB viewer.",
   "author": {
     "name": "Suzuki Makoto"
   },
@@ -13,13 +13,16 @@
     "snapshot search",
     "bookmark import",
     "native macOS",
-    "stdio MCP"
+    "stdio MCP",
+    "IAB",
+    "Codex Browser",
+    "local HTML viewer"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Codex URL Vault",
-    "shortDescription": "Save, search, open, import, and preserve URLs locally.",
-    "longDescription": "A native macOS URL library with a SwiftUI app and task-oriented stdio MCP tools. Search saved links and verified preserved text, manage categories, import browser bookmarks, and open selected URLs.",
+    "shortDescription": "Use one local URL Vault from macOS, MCP, or Codex IAB.",
+    "longDescription": "A local URL library with a SwiftUI app, task-oriented stdio MCP tools, and a responsive card-based Viewer for Codex Browser/IAB. Search saved links and verified preserved text, manage categories, import browser bookmarks, and open selected URLs.",
     "developerName": "Suzuki Makoto",
     "category": "Productivity",
     "capabilities": [
@@ -28,10 +31,12 @@
       "Bookmark import",
       "Verified text snapshots",
       "Category management",
-      "Task-oriented MCP tools"
+      "Task-oriented MCP tools",
+      "Card-based Codex Browser/IAB viewer"
     ],
     "defaultPrompt": [
       "Open Codex URL Vault and show my saved URLs.",
+      "Show Codex URL Vault inside Codex Browser/IAB.",
       "Find the saved URL about my current topic.",
       "Save this URL to Codex URL Vault."
     ]

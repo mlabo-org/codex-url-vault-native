@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Codex URL Vault</title>
+  <script>
+    (() => {
+      const preferenceKey = "codexUrlVaultPreferences";
+      let theme = "system";
+      try {
+        const stored = JSON.parse(localStorage.getItem(preferenceKey) || "{}");
+        if (["system", "light", "dark"].includes(stored.theme)) {
+          theme = stored.theme;
+        } else {
+          const legacyTheme = localStorage.getItem("bookmarkVaultTheme");
+          theme = legacyTheme === "auto" ? "system" : (["light", "dark"].includes(legacyTheme) ? legacyTheme : "system");
+        }
+      } catch {
+        theme = "system";
+      }
+      if (theme === "light" || theme === "dark") {
+        document.documentElement.setAttribute("data-mlh-theme", theme);
+      }
+    })();
+  </script>
+  <link rel="stylesheet" href="./styles.css?v=url-vault-unfiled-20260723">
+</head>
+<body>
+  <main class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="mark">URL</span>
+        <div>
+          <h1>Bookmark Vault</h1>
+          <p data-i18n="brandSubtitle">Codex用のローカルURL保管庫</p>
+        </div>
+      </div>
+
+      <label class="search">
+        <span data-i18n="searchLabel">検索</span>
+        <input id="searchInput" type="search" placeholder="mlabo, SWELL, Cloudflare..." data-i18n-placeholder="searchPlaceholder" autocomplete="off">
+      </label>
+
+      <section>
+        <h2 data-i18n="folders">フォルダ</h2>
+        <div id="folderList" class="folder-list"></div>
+      </section>
+    </aside>
+
+    <div
+      id="sidebarResizeHandle"
+      class="resize-handle"
+      role="separator"
+      aria-label="サイドバー幅"
+      aria-orientation="vertical"
+      aria-valuemin="220"
+      aria-valuemax="520"
+      aria-valuenow="320"
+      tabindex="0"
+    ></div>
+
+    <section class="content">
+      <header class="toolbar">
+        <div>
+          <p class="eyebrow" data-i18n="localIndex">ローカルURL索引</p>
+          <h2 id="viewTitle">すべてのブックマーク</h2>
+        </div>
+        <div class="toolbar-actions">
+          <div class="preference-controls language-controls" role="group" aria-label="Language" data-i18n-aria-label="languageControl">
+            <button class="preference-option" type="button" data-language-option="system">System</button>
+            <button class="preference-option" type="button" data-language-option="ja">Japanese</button>
+            <button class="preference-option" type="button" data-language-option="en">English</button>
+          </div>
+          <div class="preference-controls" role="group" aria-label="Theme" data-i18n-aria-label="themeControl">
+            <button class="preference-option" type="button" data-theme-option="system">System</button>
+            <button class="preference-option" type="button" data-theme-option="light">Light</button>
+            <button class="preference-option" type="button" data-theme-option="dark">Dark</button>
+          </div>
+          <button id="openVaultExternalButton" class="action-button" type="button" data-i18n="openInDefaultBrowser">既定ブラウザでVaultを開く</button>
+          <button id="promptSamplesButton" class="action-button" type="button" data-i18n="promptSamples">プロンプト例</button>
+          <button id="importBookmarksButton" class="action-button primary" type="button" data-i18n="importBookmarks">ブックマークをインポート</button>
+          <button id="addUrlButton" class="action-button" type="button" data-i18n="addUrl">URLを追加</button>
+          <button id="addCategoryButton" class="action-button" type="button" data-i18n="addCategory">カテゴリを追加</button>
+          <div class="stats">
+            <span id="visibleCount">0</span>
+            <span>/</span>
+            <span id="totalCount">0</span>
+          </div>
+        </div>
+      </header>
+
+      <section id="importOnboarding" class="onboarding" aria-labelledby="onboardingTitle" hidden>
+        <div class="onboarding-copy">
+          <p class="eyebrow" data-i18n="firstSetup">最初のセットアップ</p>
+          <h3 id="onboardingTitle" data-i18n="bringBookmarks">いまのブックマークを、そのままVaultへ</h3>
+          <p data-i18n="bringBookmarksHelp">ブラウザからHTMLを書き出し、内容を確認してから安全に取り込みます。</p>
+        </div>
+        <ol class="onboarding-steps" aria-label="Import steps" data-i18n-aria-label="importSteps">
+          <li><span>1</span><strong data-i18n="chooseBrowser">ブラウザを選ぶ</strong></li>
+          <li><span>2</span><strong data-i18n="chooseHtml">HTMLを選ぶ</strong></li>
+          <li><span>3</span><strong data-i18n="reviewImport">確認して取り込む</strong></li>
+        </ol>
+        <button id="onboardingImportButton" class="action-button primary onboarding-action" type="button" data-i18n="startImport">インポートを始める</button>
+      </section>
+
+      <div id="emptyState" class="empty" hidden>
+        <h3 data-i18n="noMatches">該当なし</h3>
+        <p data-i18n="noMatchesHelp">別の語句、フォルダ、エイリアス、URL断片を試してください。</p>
+        <button id="clearFiltersButton" class="action-button primary" type="button" data-i18n="clearFilters">絞り込みを解除</button>
+      </div>
+
+      <div id="grid" class="grid"></div>
+    </section>
+  </main>
+
+  <dialog id="bookmarkDialog" class="dialog">
+    <form id="bookmarkForm" method="dialog">
+      <header class="dialog-header">
+        <h2 id="dialogTitle">URLを編集</h2>
+        <button id="dialogClose" class="icon-button" type="button" aria-label="Close" data-i18n-aria-label="close">x</button>
+      </header>
+      <input id="bookmarkId" type="hidden">
+      <label>
+        <span>URL</span>
+        <input id="bookmarkUrl" type="url" required>
+      </label>
+      <label>
+        <span data-i18n="title">タイトル</span>
+        <input id="bookmarkTitle" type="text">
+      </label>
+      <label>
+        <span data-i18n="category">カテゴリ</span>
+        <input id="bookmarkCategory" type="text" list="categoryOptions">
+      </label>
+      <datalist id="categoryOptions"></datalist>
+      <label>
+        <span data-i18n="aliases">エイリアス</span>
+        <input id="bookmarkAliases" type="text" placeholder="mlabo, えむらぼ">
+      </label>
+      <label>
+        <span data-i18n="tags">タグ</span>
+        <input id="bookmarkTags" type="text" placeholder="seo, wordpress">
+      </label>
+      <label>
+        <span data-i18n="intents">用途</span>
+        <input id="bookmarkIntents" type="text" placeholder="docs, weather">
+      </label>
+      <label>
+        <span data-i18n="note">メモ</span>
+        <textarea id="bookmarkNote" rows="3"></textarea>
+      </label>
+      <footer class="dialog-actions">
+        <button id="deleteBookmarkButton" class="action-button danger" type="button" data-i18n="delete">削除</button>
+        <span></span>
+        <button class="action-button" type="button" id="cancelBookmarkButton" data-i18n="cancel">キャンセル</button>
+        <button class="action-button primary" type="submit" data-i18n="save">保存</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="categoryDialog" class="dialog category-dialog">
+    <form id="categoryForm" method="dialog">
+      <header class="dialog-header">
+        <h2 id="categoryDialogTitle" data-i18n="addCategory">カテゴリを追加</h2>
+        <button id="categoryDialogClose" class="icon-button" type="button" aria-label="Close" data-i18n-aria-label="close">x</button>
+      </header>
+      <label>
+        <span data-i18n="newCategoryPath">新しいカテゴリのパス</span>
+        <input id="categoryPath" type="text" required autocomplete="off" aria-describedby="categoryPathHelp" data-i18n-placeholder="categoryPathPlaceholder" placeholder="例: Research/AI">
+      </label>
+      <p id="categoryPathHelp" class="dialog-help" data-i18n="categoryPathHelp">スラッシュで階層を作れます。</p>
+      <section id="categoryDeleteConfirm" class="danger-panel" aria-live="polite" hidden>
+        <div>
+          <h3 data-i18n="deleteCategoryTitle">このカテゴリを削除しますか？</h3>
+          <p data-i18n="deleteCategoryHelp">中のURLは削除されず、「未分類」へ移動します。</p>
+        </div>
+        <div class="danger-panel-actions">
+          <button id="cancelCategoryDeleteButton" class="action-button" type="button" data-i18n="back">戻る</button>
+          <button id="confirmCategoryDeleteButton" class="action-button danger" type="button" data-i18n="confirmDeleteCategory">カテゴリを削除</button>
+        </div>
+      </section>
+      <footer class="dialog-actions">
+        <button id="deleteCategoryButton" class="action-button danger" type="button" data-i18n="deleteCategory">カテゴリを削除</button>
+        <span></span>
+        <button id="cancelCategoryButton" class="action-button" type="button" data-i18n="cancel">キャンセル</button>
+        <button class="action-button primary" type="submit" data-i18n="save">保存</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="importDialog" class="dialog import-dialog">
+    <form id="importForm" method="dialog">
+      <header class="dialog-header import-dialog-header">
+        <div>
+          <p class="eyebrow" data-i18n="browserMigration">ブラウザ移行</p>
+          <h2 data-i18n="importBookmarks">ブックマークをインポート</h2>
+        </div>
+        <button id="importDialogClose" class="icon-button" type="button" aria-label="Close" data-i18n-aria-label="close">x</button>
+      </header>
+
+      <ol id="importStepper" class="import-stepper" aria-label="Import progress" data-i18n-aria-label="importProgress">
+        <li data-step-indicator="1"><span>1</span><strong data-i18n="browser">ブラウザ</strong></li>
+        <li data-step-indicator="2"><span>2</span><strong data-i18n="htmlFile">HTMLファイル</strong></li>
+        <li data-step-indicator="3"><span>3</span><strong data-i18n="confirm">確認</strong></li>
+      </ol>
+
+      <div id="importStatus" class="import-status" role="status" aria-live="polite" hidden></div>
+
+      <section class="import-step" data-import-step="1">
+        <div class="section-heading">
+          <h3 data-i18n="whichBrowser">どのブラウザから移しますか？</h3>
+          <p data-i18n="browserChoiceHelp">選ぶと、HTMLを書き出す手順を表示します。</p>
+        </div>
+        <fieldset class="browser-options">
+          <legend class="sr-only" data-i18n="browser">ブラウザ</legend>
+          <label><input type="radio" name="sourceBrowser" value="brave"><span>Brave</span></label>
+          <label><input type="radio" name="sourceBrowser" value="chrome"><span>Chrome</span></label>
+          <label><input type="radio" name="sourceBrowser" value="firefox"><span>Firefox</span></label>
+          <label><input type="radio" name="sourceBrowser" value="safari"><span>Safari</span></label>
+          <label><input type="radio" name="sourceBrowser" value="other"><span data-i18n="otherBrowser">その他</span></label>
+        </fieldset>
+        <div id="browserExportGuide" class="export-guide" hidden>
+          <span class="guide-kicker" data-i18n="exportHtml">HTMLを書き出す</span>
+          <p id="browserExportInstructions"></p>
+          <p class="guide-note" data-i18n="exportGuideNote">書き出したHTMLは次の画面で選びます。元のブラウザのブックマークは変更されません。</p>
+        </div>
+        <label class="field-label" for="sourceProfile">
+          <span data-i18n="profileOptional">プロファイル名（任意）</span>
+          <input id="sourceProfile" type="text" maxlength="120" placeholder="Default" autocomplete="off">
+        </label>
+      </section>
+
+      <section class="import-step" data-import-step="2" hidden>
+        <div class="section-heading">
+          <h3 data-i18n="selectExportedHtml">書き出したHTMLを選択</h3>
+          <p data-i18n="filePrivacy">ファイルはこのMac内のローカルVaultだけで処理されます。</p>
+        </div>
+        <label id="importDropZone" class="import-drop-zone" for="importFile">
+          <input id="importFile" type="file" accept=".html,.htm,text/html" hidden>
+          <span class="drop-icon" aria-hidden="true">HTML</span>
+          <strong data-i18n="dropFile">ここにドロップ、またはファイルを選択</strong>
+          <span id="selectedFileName" data-i18n="htmlOnly">ブラウザから書き出したHTML（最大20MB）</span>
+        </label>
+        <label class="check-row">
+          <input id="stripCommonRoot" type="checkbox">
+          <span><strong data-i18n="stripRoot">一番外側の共通フォルダを外す</strong><small data-i18n="stripRootHelp">書き出し元が全項目を1つのフォルダで包んでいる場合だけ使います。</small></span>
+        </label>
+        <div id="filePreview" class="file-preview" hidden>
+          <div><span data-i18n="bookmarksFound">検出したURL</span><strong id="previewBookmarkCount">0</strong></div>
+          <div><span data-i18n="foldersFound">フォルダ</span><strong id="previewFolderCount">0</strong></div>
+          <div><span data-i18n="duplicatesFound">重複URL</span><strong id="previewDuplicateCount">0</strong></div>
+        </div>
+      </section>
+
+      <section class="import-step" data-import-step="3" hidden>
+        <div class="section-heading">
+          <h3 data-i18n="chooseImportMethod">取り込み方法を確認</h3>
+          <p data-i18n="noAutomaticDelete">どの通常モードでも、HTMLに無い既存URLを自動削除しません。</p>
+        </div>
+        <fieldset class="import-modes">
+          <legend class="sr-only" data-i18n="importMethod">取り込み方法</legend>
+          <label class="mode-card recommended">
+            <input type="radio" name="importMode" value="merge" checked>
+            <span><strong><span data-i18n="differentialSync">差分同期</span><em data-i18n="recommended">推奨</em></strong><small data-i18n="differentialSyncHelp">新規URLを追加し、同じURLの情報を更新します。HTMLに無いURLは残します。</small></span>
+          </label>
+          <label class="mode-card">
+            <input type="radio" name="importMode" value="add">
+            <span><strong data-i18n="addOnly">追加のみ</strong><small data-i18n="addOnlyHelp">新規URLだけ追加し、既存URLのタイトルや整理内容には触れません。</small></span>
+          </label>
+          <details class="danger-zone">
+            <summary data-i18n="advancedReplace">詳細設定：すべて置き換え</summary>
+            <label class="mode-card danger-mode">
+              <input type="radio" name="importMode" value="reset">
+              <span><strong data-i18n="replaceAll">すべて置き換え</strong><small data-i18n="replaceAllHelp">先にDBをバックアップし、現在のVaultデータを消してこのHTMLを新しい基準にします。</small></span>
+            </label>
+            <label id="resetConfirmRow" class="check-row danger-confirm" hidden>
+              <input id="resetConfirm" type="checkbox">
+              <span data-i18n="replaceConfirm">現在のVaultデータが置き換わることを理解しました</span>
+            </label>
+          </details>
+        </fieldset>
+        <dl class="import-review">
+          <div><dt data-i18n="source">移行元</dt><dd id="reviewBrowser">-</dd></div>
+          <div><dt data-i18n="file">ファイル</dt><dd id="reviewFile">-</dd></div>
+          <div><dt data-i18n="importCount">取り込み対象</dt><dd id="reviewCount">-</dd></div>
+        </dl>
+      </section>
+
+      <section id="importResult" class="import-result" hidden tabindex="-1">
+        <div class="success-mark" aria-hidden="true">✓</div>
+        <div>
+          <p class="eyebrow" data-i18n="importComplete">インポート完了</p>
+          <h3 id="importResultTitle"></h3>
+          <p id="importResultSummary"></p>
+        </div>
+        <dl class="result-counts">
+          <div><dt data-i18n="added">追加</dt><dd id="resultCreated">0</dd></div>
+          <div><dt data-i18n="updated">更新</dt><dd id="resultUpdated">0</dd></div>
+          <div><dt data-i18n="skipped">変更なし</dt><dd id="resultSkipped">0</dd></div>
+        </dl>
+      </section>
+
+      <footer class="dialog-actions import-actions">
+        <button id="importBackButton" class="action-button" type="button" data-i18n="back">戻る</button>
+        <span></span>
+        <button id="importCancelButton" class="action-button" type="button" data-i18n="cancel">キャンセル</button>
+        <button id="importNextButton" class="action-button primary" type="button" data-i18n="next">次へ</button>
+        <button id="importRunButton" class="action-button primary" type="submit" data-i18n="runImport" hidden>インポートする</button>
+        <button id="importDoneButton" class="action-button primary" type="button" data-i18n="viewBookmarks" hidden>ブックマークを見る</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="promptSamplesDialog" class="dialog">
+    <form method="dialog">
+      <header class="dialog-header">
+        <h2 data-i18n="promptSamples">プロンプト例</h2>
+        <button id="promptSamplesClose" class="icon-button" type="button" aria-label="Close" data-i18n-aria-label="close">x</button>
+      </header>
+      <div id="promptSamplesList"></div>
+      <footer class="dialog-actions">
+        <button id="copyAllPromptsButton" class="action-button" type="button" data-i18n="copyAll">すべてコピー</button>
+        <span></span>
+        <button class="action-button primary" type="submit" data-i18n="close">閉じる</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="snapshotDialog" class="dialog snapshot-dialog">
+    <section class="snapshot-reader">
+      <header class="dialog-header">
+        <div>
+          <p class="eyebrow" data-i18n="savedSnapshot">保存済みスナップショット</p>
+          <h2 id="snapshotTitle">Snapshot</h2>
+        </div>
+        <button id="snapshotDialogClose" class="icon-button" type="button" aria-label="Close" data-i18n-aria-label="close">x</button>
+      </header>
+      <p id="snapshotMeta" class="snapshot-meta"></p>
+      <pre id="snapshotContent" class="snapshot-content" tabindex="0"></pre>
+      <footer class="snapshot-actions">
+        <button id="snapshotCloseButton" class="action-button primary" type="button" data-i18n="close">閉じる</button>
+      </footer>
+    </section>
+  </dialog>
+
+  <script src="./app.js?v=url-vault-unfiled-20260723"></script>
+</body>
+</html>

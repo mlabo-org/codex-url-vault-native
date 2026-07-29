@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 use url_vault_core::{Vault, VaultError};
+use url_vault_viewer::start_iab_viewer;
 
 pub const MCP_PROTOCOL_VERSION: &str = "2025-06-18";
 
@@ -62,7 +63,7 @@ fn initialize_result(_params: Option<&Value>) -> Value {
             "title": "Codex URL Vault",
             "version": env!("CARGO_PKG_VERSION")
         },
-        "instructions": "Use task-oriented URL Vault tools. Suggest before opening vague requests, preserve snapshots only from explicit UTF-8 content, and use show_vault only when the user asks to open the native Vault app."
+        "instructions": "Use task-oriented URL Vault tools. Suggest before opening vague requests, preserve snapshots only from explicit UTF-8 content, use show_vault for the independent native app, and use show_iab_vault when the user wants the card-based Vault inside Codex Browser/IAB."
     })
 }
 
@@ -85,6 +86,11 @@ fn call_tool(name: &str, arguments: &Value) -> Result<Value, VaultError> {
     if name == "show_vault" {
         let app_path = optional_string(arguments, "appPath").map(PathBuf::from);
         return Ok(json!({ "appPath": Vault::show_vault(app_path.as_deref())? }));
+    }
+    if name == "show_iab_vault" {
+        let viewer = start_iab_viewer()
+            .map_err(|error| VaultError::InvalidInput(format!("IAB viewer: {error}")))?;
+        return Ok(serde_json::to_value(viewer)?);
     }
     let vault = Vault::from_env()?;
     match name {
@@ -317,6 +323,12 @@ fn tool_records() -> Vec<Value> {
             schema(&[], &[("appPath", string())]),
             action_annotations("Show Codex URL Vault"),
         ),
+        tool(
+            "show_iab_vault",
+            "Start or reuse the authenticated localhost card-based Vault viewer and return its viewerUrl. Open that URL with Codex Browser/IAB; this tool does not navigate the browser itself.",
+            schema(&[], &[]),
+            action_annotations("Show URL Vault in Codex Browser"),
+        ),
     ]
 }
 
@@ -530,8 +542,9 @@ mod tests {
     #[test]
     fn lists_task_oriented_tools_and_annotations() {
         let tools = tool_records();
-        assert_eq!(tools.len(), 19);
+        assert_eq!(tools.len(), 20);
         assert!(tools.iter().any(|tool| tool["name"] == "show_vault"));
+        assert!(tools.iter().any(|tool| tool["name"] == "show_iab_vault"));
         assert_eq!(
             tools
                 .iter()
