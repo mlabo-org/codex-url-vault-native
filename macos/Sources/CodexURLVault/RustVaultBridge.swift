@@ -40,6 +40,25 @@ private func ffiArchiveURL(
     _ home: UnsafePointer<CChar>?,
     _ target: UnsafePointer<CChar>?
 ) -> UnsafeMutablePointer<CChar>?
+@_silgen_name("url_vault_create_category")
+private func ffiCreateCategory(
+    _ home: UnsafePointer<CChar>?,
+    _ path: UnsafePointer<CChar>?,
+    _ label: UnsafePointer<CChar>?,
+    _ note: UnsafePointer<CChar>?
+) -> UnsafeMutablePointer<CChar>?
+@_silgen_name("url_vault_rename_category")
+private func ffiRenameCategory(
+    _ home: UnsafePointer<CChar>?,
+    _ oldPath: UnsafePointer<CChar>?,
+    _ newPath: UnsafePointer<CChar>?
+) -> UnsafeMutablePointer<CChar>?
+@_silgen_name("url_vault_archive_category")
+private func ffiArchiveCategory(
+    _ home: UnsafePointer<CChar>?,
+    _ path: UnsafePointer<CChar>?,
+    _ moveTo: UnsafePointer<CChar>?
+) -> UnsafeMutablePointer<CChar>?
 @_silgen_name("url_vault_preview_import")
 private func ffiPreviewImport(
     _ home: UnsafePointer<CChar>?,
@@ -154,6 +173,42 @@ enum RustVaultBridge {
         }
     }
 
+    static func createCategory(
+        path: String,
+        label: String?,
+        note: String?
+    ) throws -> VaultMutation<VaultCategory> {
+        try path.withCString { pathPointer in
+            try withOptionalCString(label) { labelPointer in
+                try withOptionalCString(note) { notePointer in
+                    try decode(ffiCreateCategory(nil, pathPointer, labelPointer, notePointer))
+                }
+            }
+        }
+    }
+
+    static func renameCategory(
+        oldPath: String,
+        newPath: String
+    ) throws -> VaultMutation<VaultCategory> {
+        try oldPath.withCString { oldPointer in
+            try newPath.withCString { newPointer in
+                try decode(ffiRenameCategory(nil, oldPointer, newPointer))
+            }
+        }
+    }
+
+    static func archiveCategory(
+        path: String,
+        moveTo: String
+    ) throws -> VaultMutation<VaultCategory> {
+        try path.withCString { pathPointer in
+            try moveTo.withCString { movePointer in
+                try decode(ffiArchiveCategory(nil, pathPointer, movePointer))
+            }
+        }
+    }
+
     static func previewImport(
         html: String,
         fileName: String,
@@ -206,6 +261,16 @@ enum RustVaultBridge {
             throw VaultBridgeError.native("Could not encode a native Vault request.")
         }
         return json
+    }
+
+    private static func withOptionalCString<Result>(
+        _ value: String?,
+        _ body: (UnsafePointer<CChar>?) throws -> Result
+    ) rethrows -> Result {
+        guard let value else {
+            return try body(nil)
+        }
+        return try value.withCString(body)
     }
 
     private static func decode<Value: Decodable>(

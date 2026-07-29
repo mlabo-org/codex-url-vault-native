@@ -739,6 +739,12 @@ impl Vault {
         let (bookmark, url) = if target.starts_with("http://") || target.starts_with("https://") {
             let bookmark = self.get_url(target).ok();
             (bookmark, target.to_owned())
+        } else if let Ok(bookmark) = self
+            .connection()
+            .and_then(|connection| load_bookmark(&connection, target))
+        {
+            let url = bookmark.url.clone();
+            (Some(bookmark), url)
         } else {
             let candidates = self.search_urls(target, 5)?;
             if !search::is_clear_winner(&candidates) {
