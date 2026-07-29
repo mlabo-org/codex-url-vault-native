@@ -1,0 +1,18 @@
+[package]
+name = "url-vault-native-host"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+url.workspace = true
+url-vault-core = { path = "../url-vault-core" }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -1,6 +1,6 @@
 # Codex URL Vault Native
 
-Native replacement source for the `codex-url-vault` plugin. The repository owns five
+Native replacement source for the `codex-url-vault` plugin. The repository owns seven
 coherent delivery surfaces:
 
 - `url-vault-core`: SQLite schema, bookmark HTML compatibility, search, snapshots,
@@ -11,6 +11,8 @@ coherent delivery surfaces:
 - `url-vault-cli`: machine-readable command-line interface for local operation.
 - `Codex URL Vault.app`: SwiftUI browser/editor using the Rust core through an
   operation-specific C ABI.
+- `url-vault-native-host`: Chrome Native Messaging adapter over the same Rust core.
+- `extension/chrome`: Bitwarden-style current-tab capture popup and context menu.
 
 All surfaces use `CODEX_URL_VAULT_HOME` when set and otherwise share
 `~/.codex/url-vault`. The app bundle carries the MCP server and CLI in
@@ -20,6 +22,35 @@ All surfaces use `CODEX_URL_VAULT_HOME` when set and otherwise share
 Viewer inside the MCP process and returns a session URL for Codex Browser/IAB. The
 Viewer uses a random loopback port and session token; it does not use the retired
 Python server or fixed port.
+
+The Chrome extension uses stable ID `fhijpanhohijhimeiajdgfhcpipbhkkh`. Its popup
+prefills the active tab and accepts category, tags, and a note. The context menu saves
+the current page or selected link with the last-used category and tags. Both routes
+send a length-prefixed native message to `com.suzukimakoto.codex_url_vault`, which
+calls `save_url` on the shared Rust core. The extension never opens SQLite or stdio
+MCP directly.
+
+Source locations:
+
+```text
+extension/chrome/
+extension/native-host/com.suzukimakoto.codex_url_vault.json
+```
+
+Validate the extension contract with:
+
+```bash
+node scripts/validate-chrome-extension.mjs
+```
+
+The native host can render a registration manifest for a chosen absolute binary path:
+
+```bash
+url-vault-native-host --print-chrome-manifest /absolute/path/to/url-vault-native-host
+```
+
+Chrome unpacked-extension loading, copying the Native Messaging manifest into Chrome's
+profile support directory, and runtime activation are separate operational steps.
 
 ## Build
 

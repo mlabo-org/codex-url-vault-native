@@ -5,6 +5,7 @@ members = [
     "crates/url-vault-mcp",
     "crates/url-vault-ffi",
     "crates/url-vault-viewer",
+    "crates/url-vault-native-host",
 ]
 resolver = "3"
 

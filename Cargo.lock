@@ -1230,6 +1230,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "url-vault-native-host"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "url",
+ "url-vault-core",
+]
+
+[[package]]
 name = "url-vault-viewer"
 version = "0.1.0"
 dependencies = [

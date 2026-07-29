@@ -1,4 +1,4 @@
 interface:
   display_name: "Codex URL Vault"
-  short_description: "Save, search, and show URLs in the native app or Codex IAB"
+  short_description: "Save and find URLs via macOS, Codex IAB, MCP, or Chrome"
   default_prompt: "Show my saved URLs in the Codex Browser/IAB Vault."
