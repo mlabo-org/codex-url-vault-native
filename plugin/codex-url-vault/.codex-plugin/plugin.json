@@ -1,7 +1,7 @@
 {
   "name": "codex-url-vault",
   "version": "0.1.0",
-  "description": "Local URL library with a native macOS app, task-oriented MCP tools, and a card-based Codex Browser/IAB viewer.",
+  "description": "Local URL library with a native macOS app, task-oriented MCP tools, a card-based Codex Browser/IAB viewer, and Chrome current-page capture.",
   "author": {
     "name": "Suzuki Makoto"
   },
@@ -16,13 +16,15 @@
     "stdio MCP",
     "IAB",
     "Codex Browser",
-    "local HTML viewer"
+    "local HTML viewer",
+    "Chrome extension",
+    "Native Messaging"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Codex URL Vault",
     "shortDescription": "Use one local URL Vault from macOS, MCP, or Codex IAB.",
-    "longDescription": "A local URL library with a SwiftUI app, task-oriented stdio MCP tools, and a responsive card-based Viewer for Codex Browser/IAB. Search saved links and verified preserved text, manage categories, import browser bookmarks, and open selected URLs.",
+    "longDescription": "A local URL library with a SwiftUI app, task-oriented stdio MCP tools, a responsive card-based Viewer for Codex Browser/IAB, and a Bitwarden-style Chrome capture extension backed by a native Rust host.",
     "developerName": "Suzuki Makoto",
     "category": "Productivity",
     "capabilities": [
@@ -32,13 +34,16 @@
       "Verified text snapshots",
       "Category management",
       "Task-oriented MCP tools",
-      "Card-based Codex Browser/IAB viewer"
+      "Card-based Codex Browser/IAB viewer",
+      "Chrome current-page capture",
+      "Rust Native Messaging Host"
     ],
     "defaultPrompt": [
       "Open Codex URL Vault and show my saved URLs.",
       "Show Codex URL Vault inside Codex Browser/IAB.",
       "Find the saved URL about my current topic.",
-      "Save this URL to Codex URL Vault."
+      "Save this URL to Codex URL Vault.",
+      "Capture the current Chrome page in Codex URL Vault."
     ]
   },
   "mcpServers": "./.mcp.json"

@@ -13,7 +13,8 @@ cd "$repo_root"
 MACOSX_DEPLOYMENT_TARGET=14.0 cargo build --release \
   -p url-vault-ffi \
   -p url-vault-mcp \
-  -p url-vault-cli
+  -p url-vault-cli \
+  -p url-vault-native-host
 
 mkdir -p "$repo_root/macos/Libraries"
 cp "$repo_root/target/release/liburl_vault_ffi.a" \
@@ -42,12 +43,20 @@ cp "$repo_root/target/release/url-vault-mcp" \
   "$contents/Resources/url-vault-mcp"
 cp "$repo_root/target/release/url-vault" \
   "$contents/Resources/url-vault"
+cp "$repo_root/target/release/url-vault-native-host" \
+  "$contents/Resources/url-vault-native-host"
+cp "$repo_root/extension/native-host/com.suzukimakoto.codex_url_vault.json" \
+  "$contents/Resources/chrome-native-host-manifest.json"
+rm -rf "$contents/Resources/chrome-extension"
+cp -R "$repo_root/extension/chrome" \
+  "$contents/Resources/chrome-extension"
 cp "$repo_root/macos/Info.plist" "$contents/Info.plist"
 
 chmod 755 \
   "$contents/MacOS/CodexURLVault" \
   "$contents/Resources/url-vault-mcp" \
-  "$contents/Resources/url-vault"
+  "$contents/Resources/url-vault" \
+  "$contents/Resources/url-vault-native-host"
 
 /usr/bin/codesign --force --deep --sign - "$app_root"
 printf '%s\n' "$app_root"
