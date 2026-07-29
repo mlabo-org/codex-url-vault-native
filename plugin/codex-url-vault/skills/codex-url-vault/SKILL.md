@@ -1,6 +1,6 @@
 ---
 name: codex-url-vault
-description: "Operate Codex URL Vault for saved links, bookmark search and capture, the native macOS Vault, the card-based Codex Browser/IAB viewer, Chrome current-page capture, imports, categories, URL opening, and preserved-text snapshots. Route Codex requests through the plugin's task-oriented MCP tools."
+description: "Operate Codex URL Vault for saved links, bookmark search and capture, the native macOS Vault, the card-based Codex Browser/IAB viewer, Brave current-page capture, imports, categories, URL opening, and preserved-text snapshots. Route Codex requests through the plugin's task-oriented MCP tools."
 ---
 
 # Codex URL Vault
@@ -29,7 +29,7 @@ content acquisition. Snapshot preservation stores text supplied by the caller. T
 IAB Reader Preview may fetch a page for temporary display, but it does not preserve
 that content as a snapshot.
 
-Chrome popup and context-menu capture are browser-side routes through the bundled
+Brave popup and context-menu capture are browser-side routes through the bundled
 Native Messaging Host and shared Rust Core. They do not connect to stdio MCP. For the
 same save request made to Codex, continue to use the MCP `save_url` tool.
 

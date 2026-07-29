@@ -152,7 +152,7 @@ fn save_url(
         note: optional_text(note),
         tags: normalize_list(tags),
         source_type: Some("browser_extension".to_owned()),
-        source_browser: Some("chrome".to_owned()),
+        source_browser: Some("brave".to_owned()),
         folder_path: optional_text(category),
         status: Some("active".to_owned()),
         ..SaveUrlInput::default()
@@ -221,10 +221,10 @@ fn write_frame(writer: &mut impl Write, response: &NativeResponse) -> Result<(),
     Ok(())
 }
 
-pub fn chrome_manifest(host_path: &str) -> Value {
+pub fn brave_manifest(host_path: &str) -> Value {
     json!({
         "name": HOST_NAME,
-        "description": "Codex URL Vault Chrome capture host",
+        "description": "Codex URL Vault Brave capture host",
         "path": host_path,
         "type": "stdio",
         "allowed_origins": [format!("chrome-extension://{EXTENSION_ID}/")],
@@ -262,7 +262,7 @@ mod tests {
                 url: "https://example.test/extension".to_owned(),
                 title: "Extension capture".to_owned(),
                 category: "Browser/Inbox".to_owned(),
-                tags: vec!["chrome".to_owned(), "capture".to_owned()],
+                tags: vec!["brave".to_owned(), "capture".to_owned()],
                 note: "Saved by test".to_owned(),
             },
         );
@@ -273,6 +273,7 @@ mod tests {
         assert_eq!(saved.len(), 1);
         assert_eq!(saved[0].folder_path.as_deref(), Some("Browser/Inbox"));
         assert_eq!(saved[0].source_type, "browser_extension");
+        assert_eq!(saved[0].source_browser.as_deref(), Some("brave"));
     }
 
     #[test]
@@ -284,7 +285,7 @@ mod tests {
             &vault,
             NativeRequest::SaveUrl {
                 id: "save-two".to_owned(),
-                url: "chrome://settings/".to_owned(),
+                url: "brave://settings/".to_owned(),
                 title: String::new(),
                 category: String::new(),
                 tags: Vec::new(),
@@ -300,7 +301,7 @@ mod tests {
 
     #[test]
     fn generated_manifest_is_bound_to_the_extension() {
-        let manifest = chrome_manifest("/Applications/Codex URL Vault.app/host");
+        let manifest = brave_manifest("/Applications/Codex URL Vault.app/host");
         assert_eq!(manifest["name"], HOST_NAME);
         assert_eq!(
             manifest["allowed_origins"][0],

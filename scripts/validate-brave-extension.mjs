@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const repoRoot = resolve(import.meta.dirname, "..");
-const extensionRoot = resolve(repoRoot, "extension/chrome");
+const extensionRoot = resolve(repoRoot, "extension/brave");
 const manifestPath = resolve(extensionRoot, "manifest.json");
 const hostManifestPath = resolve(
   repoRoot,
@@ -58,7 +58,7 @@ if (expectedPermissions.size) {
   fail(`Missing extension permissions: ${[...expectedPermissions].join(", ")}`);
 }
 if (manifest.host_permissions?.length) {
-  fail("Chrome extension must not request broad host permissions");
+  fail("Brave extension must not request broad host permissions");
 }
 
 const requiredFiles = [
@@ -80,4 +80,4 @@ for (const script of ["popup.js", "service-worker.js"]) {
   }
 }
 
-console.log(`Chrome extension validation passed: ${extensionId}`);
+console.log(`Brave extension validation passed: ${extensionId}`);
