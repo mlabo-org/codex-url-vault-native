@@ -9,6 +9,8 @@ contents="$app_root/Contents"
 icon_source="$repo_root/macos/Resources/AppIcon.png"
 iconset="$repo_root/macos/.build/AppIcon.iconset"
 
+rm -rf "$app_root"
+
 cd "$repo_root"
 MACOSX_DEPLOYMENT_TARGET=14.0 cargo build --release \
   -p url-vault-ffi \
@@ -46,10 +48,9 @@ cp "$repo_root/target/release/url-vault" \
 cp "$repo_root/target/release/url-vault-native-host" \
   "$contents/Resources/url-vault-native-host"
 cp "$repo_root/extension/native-host/com.suzukimakoto.codex_url_vault.json" \
-  "$contents/Resources/chrome-native-host-manifest.json"
-rm -rf "$contents/Resources/chrome-extension"
-cp -R "$repo_root/extension/chrome" \
-  "$contents/Resources/chrome-extension"
+  "$contents/Resources/brave-native-host-manifest.json"
+cp -R "$repo_root/extension/brave" \
+  "$contents/Resources/brave-extension"
 cp "$repo_root/macos/Info.plist" "$contents/Info.plist"
 
 chmod 755 \

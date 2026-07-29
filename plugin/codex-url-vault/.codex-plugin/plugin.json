@@ -1,7 +1,7 @@
 {
   "name": "codex-url-vault",
   "version": "0.1.0",
-  "description": "Local URL library with a native macOS app, task-oriented MCP tools, a card-based Codex Browser/IAB viewer, and Chrome current-page capture.",
+  "description": "Local URL library with a native macOS app, task-oriented MCP tools, a card-based Codex Browser/IAB viewer, and Brave current-page capture.",
   "author": {
     "name": "Suzuki Makoto"
   },
@@ -17,14 +17,14 @@
     "IAB",
     "Codex Browser",
     "local HTML viewer",
-    "Chrome extension",
+    "Brave extension",
     "Native Messaging"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Codex URL Vault",
     "shortDescription": "Use one local URL Vault from macOS, MCP, or Codex IAB.",
-    "longDescription": "A local URL library with a SwiftUI app, task-oriented stdio MCP tools, a responsive card-based Viewer for Codex Browser/IAB, and a Bitwarden-style Chrome capture extension backed by a native Rust host.",
+    "longDescription": "A local URL library with a SwiftUI app, task-oriented stdio MCP tools, a responsive card-based Viewer for Codex Browser/IAB, and a Bitwarden-style Brave capture extension backed by a native Rust host.",
     "developerName": "Suzuki Makoto",
     "category": "Productivity",
     "capabilities": [
@@ -35,13 +35,13 @@
       "Category management",
       "Task-oriented MCP tools",
       "Card-based Codex Browser/IAB viewer",
-      "Chrome current-page capture",
+      "Brave current-page capture",
       "Rust Native Messaging Host"
     ],
     "defaultPrompt": [
       "Open Codex URL Vault and show my saved URLs.",
       "Show Codex URL Vault inside Codex Browser/IAB, then find or save URLs for my current task.",
-      "Capture the current Chrome page in Codex URL Vault."
+      "Capture the current Brave page in Codex URL Vault."
     ]
   },
   "mcpServers": "./.mcp.json"
