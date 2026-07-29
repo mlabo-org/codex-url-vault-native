@@ -49,8 +49,13 @@ The native host can render a registration manifest for a chosen absolute binary 
 url-vault-native-host --print-brave-manifest /absolute/path/to/url-vault-native-host
 ```
 
-Brave unpacked-extension loading, copying the Native Messaging manifest into Brave's
-profile support directory, and runtime activation are separate operational steps.
+Brave unpacked-extension loading, Native Messaging registration, and runtime
+activation are separate operational steps. On this macOS Brave setup, install the
+same host manifest in Brave's browser-wide and active-profile
+`NativeMessagingHosts` directories and in the Chromium compatibility lookup at
+`~/Library/Application Support/Google/Chrome/NativeMessagingHosts/`, then restart
+Brave. The compatibility manifest lets Brave discover the host; it does not install
+the extension in Chrome.
 
 ## Build
 
