@@ -175,3 +175,21 @@ fn archiving_a_category_moves_bookmarks_to_unfiled() {
     assert_eq!(bookmarks.len(), 1);
     assert_eq!(bookmarks[0].folder_path.as_deref(), Some(""));
 }
+
+#[test]
+fn opening_by_exact_bookmark_id_does_not_fall_back_to_fuzzy_search() {
+    let (_home, vault) = vault();
+    let id = save(
+        &vault,
+        "https://example.test/open-by-id",
+        "Open by identifier",
+        "Reference",
+    );
+
+    let result = vault
+        .open_url(&id, None, true, "test", None)
+        .expect("open exact bookmark id");
+
+    assert_eq!(result.url, "https://example.test/open-by-id");
+    assert_eq!(result.bookmark.map(|bookmark| bookmark.id), Some(id));
+}

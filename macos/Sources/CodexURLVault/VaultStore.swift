@@ -1,19 +1,21 @@
 import Combine
 import Foundation
 
+struct PreparedVaultImport {
+    let html: String
+    let fileName: String
+    let preview: VaultImportPreview
+}
+
 @MainActor
 final class VaultStore: ObservableObject {
     @Published private(set) var bookmarks: [VaultBookmark] = []
     @Published private(set) var categories: [VaultCategory] = []
+    @Published private(set) var totalCount = 0
     @Published var selectedCategory: String?
-    @Published var selectedBookmarkID: String?
     @Published var searchText = ""
     @Published var errorMessage: String?
     @Published var activityMessage: String?
-
-    var selectedBookmark: VaultBookmark? {
-        bookmarks.first { $0.id == selectedBookmarkID }
-    }
 
     func start() {
         do {
@@ -26,10 +28,11 @@ final class VaultStore: ObservableObject {
 
     func reload() throws {
         categories = try RustVaultBridge.listCategories()
-        bookmarks = try RustVaultBridge.listURLs(category: selectedCategory)
-        if !bookmarks.contains(where: { $0.id == selectedBookmarkID }) {
-            selectedBookmarkID = bookmarks.first?.id
-        }
+        let allBookmarks = try RustVaultBridge.listURLs(category: nil)
+        totalCount = allBookmarks.count
+        bookmarks = selectedCategory == nil
+            ? allBookmarks
+            : try RustVaultBridge.listURLs(category: selectedCategory)
     }
 
     func selectCategory(_ category: String?) {
@@ -45,10 +48,15 @@ final class VaultStore: ObservableObject {
     func search() {
         do {
             let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-            bookmarks = query.isEmpty
-                ? try RustVaultBridge.listURLs(category: selectedCategory)
-                : try RustVaultBridge.searchURLs(query: query)
-            selectedBookmarkID = bookmarks.first?.id
+            if query.isEmpty {
+                bookmarks = try RustVaultBridge.listURLs(category: selectedCategory)
+                return
+            }
+
+            let matches = try RustVaultBridge.searchURLs(query: query, limit: 10_000)
+            bookmarks = selectedCategory == nil
+                ? matches
+                : matches.filter { ($0.folderPath ?? "") == selectedCategory }
         } catch {
             fail(error)
         }
@@ -59,7 +67,9 @@ final class VaultStore: ObservableObject {
         title: String,
         note: String,
         category: String,
-        tags: String
+        tags: String,
+        aliases: String,
+        intents: String
     ) -> Bool {
         let request = SaveURLRequest(
             url: url,
@@ -67,8 +77,8 @@ final class VaultStore: ObservableObject {
             description: nil,
             note: note.nilIfBlank,
             tags: tags.csvValues,
-            aliases: [],
-            intents: [],
+            aliases: aliases.csvValues,
+            intents: intents.csvValues,
             sourceType: "native_app",
             sourceBrowser: nil,
             sourceProfile: nil,
@@ -80,7 +90,6 @@ final class VaultStore: ObservableObject {
         do {
             let result = try RustVaultBridge.saveURL(request)
             try reload()
-            selectedBookmarkID = result.item.id
             activityMessage = "Saved \(result.item.displayTitle)"
             return true
         } catch {
@@ -91,29 +100,31 @@ final class VaultStore: ObservableObject {
 
     func update(
         bookmark: VaultBookmark,
+        url: String,
         title: String,
         note: String,
         category: String,
-        tags: String
+        tags: String,
+        aliases: String,
+        intents: String
     ) -> Bool {
         do {
             let result = try RustVaultBridge.updateURL(
                 target: bookmark.id,
                 changes: UpdateURLRequest(
-                    url: nil,
+                    url: url,
                     title: title,
                     description: nil,
                     note: note,
                     tags: tags.csvValues,
-                    aliases: nil,
-                    intents: nil,
+                    aliases: aliases.csvValues,
+                    intents: intents.csvValues,
                     folderPath: category,
                     preferredBrowser: nil,
                     project: nil
                 )
             )
             try reload()
-            selectedBookmarkID = result.item.id
             activityMessage = "Updated \(result.item.displayTitle)"
             return true
         } catch {
@@ -141,7 +152,59 @@ final class VaultStore: ObservableObject {
         }
     }
 
-    func importBookmarks(from fileURL: URL, stripCommonRoot: Bool = true) {
+    func createCategory(path: String, note: String) -> Bool {
+        let normalized = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return false }
+        do {
+            _ = try RustVaultBridge.createCategory(
+                path: normalized,
+                label: nil,
+                note: note.nilIfBlank
+            )
+            try reload()
+            selectedCategory = normalized
+            try reload()
+            activityMessage = "Created \(normalized)"
+            return true
+        } catch {
+            fail(error)
+            return false
+        }
+    }
+
+    func renameCategory(_ category: VaultCategory, to newPath: String) -> Bool {
+        let normalized = newPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return false }
+        do {
+            _ = try RustVaultBridge.renameCategory(oldPath: category.path, newPath: normalized)
+            if selectedCategory == category.path {
+                selectedCategory = normalized
+            }
+            try reload()
+            activityMessage = "Renamed \(category.display)"
+            return true
+        } catch {
+            fail(error)
+            return false
+        }
+    }
+
+    func archiveCategory(_ category: VaultCategory) -> Bool {
+        do {
+            _ = try RustVaultBridge.archiveCategory(path: category.path, moveTo: "")
+            if selectedCategory == category.path {
+                selectedCategory = nil
+            }
+            try reload()
+            activityMessage = "Archived \(category.display); its URLs moved to Unfiled"
+            return true
+        } catch {
+            fail(error)
+            return false
+        }
+    }
+
+    func prepareImport(from fileURL: URL, stripCommonRoot: Bool) -> PreparedVaultImport? {
         do {
             let accessing = fileURL.startAccessingSecurityScopedResource()
             defer {
@@ -155,23 +218,46 @@ final class VaultStore: ObservableObject {
                 fileName: fileURL.lastPathComponent,
                 stripCommonRoot: stripCommonRoot
             )
-            let result = try RustVaultBridge.applyImport(
-                ApplyImportRequest(
-                    html: html,
-                    fileName: fileURL.lastPathComponent,
-                    sourceBrowser: "browser",
-                    sourceProfile: "",
-                    preferredBrowser: nil,
-                    mode: "merge",
-                    stripCommonRoot: stripCommonRoot,
-                    expectedSha256: preview.contentSha256,
-                    confirmReset: false
-                )
+            return PreparedVaultImport(
+                html: html,
+                fileName: fileURL.lastPathComponent,
+                preview: preview
             )
-            try reload()
-            activityMessage = "Imported \(result.created) new and \(result.updated) existing URLs"
         } catch {
             fail(error)
+            return nil
+        }
+    }
+
+    func applyImport(
+        _ prepared: PreparedVaultImport,
+        sourceBrowser: String,
+        sourceProfile: String,
+        mode: String,
+        stripCommonRoot: Bool
+    ) -> Bool {
+        do {
+            let result = try RustVaultBridge.applyImport(
+                ApplyImportRequest(
+                    html: prepared.html,
+                    fileName: prepared.fileName,
+                    sourceBrowser: sourceBrowser,
+                    sourceProfile: sourceProfile,
+                    preferredBrowser: nil,
+                    mode: mode,
+                    stripCommonRoot: stripCommonRoot,
+                    expectedSha256: prepared.preview.contentSha256,
+                    confirmReset: mode == "reset"
+                )
+            )
+            selectedCategory = nil
+            searchText = ""
+            try reload()
+            activityMessage = "Imported \(result.created) new and \(result.updated) existing URLs"
+            return true
+        } catch {
+            fail(error)
+            return false
         }
     }
 
@@ -194,7 +280,7 @@ final class VaultStore: ObservableObject {
     }
 }
 
-private extension String {
+extension String {
     var nilIfBlank: String? {
         let value = trimmingCharacters(in: .whitespacesAndNewlines)
         return value.isEmpty ? nil : value
