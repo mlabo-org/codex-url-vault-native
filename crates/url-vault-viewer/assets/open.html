@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vault View</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body class="reader-page">
+  <main class="reader-shell">
+    <header class="reader-bar">
+      <a id="backVault" class="reader-button primary" href="./index.html">Vault</a>
+      <div class="reader-title">
+        <strong id="readerTitle">Loading</strong>
+        <span id="readerUrl"></span>
+      </div>
+      <button id="openDirect" class="reader-button primary" type="button">Open IAB</button>
+      <button id="openExternal" class="reader-button" type="button">Default browser</button>
+    </header>
+    <section class="frame-wrap">
+      <div class="frame-notice">Reader Preview fetches a simplified local copy. Use Open IAB or your default browser for the original page.</div>
+      <iframe id="siteFrame" class="site-frame" title="Selected bookmark"></iframe>
+    </section>
+  </main>
+  <script src="./open.js"></script>
+</body>
+</html>

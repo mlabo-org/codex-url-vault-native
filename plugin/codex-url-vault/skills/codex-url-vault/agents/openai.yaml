@@ -1,4 +1,4 @@
 interface:
   display_name: "Codex URL Vault"
-  short_description: "Save, search, open, import, and preserve URLs locally"
-  default_prompt: "Open Codex URL Vault and show my saved URLs."
+  short_description: "Save, search, and show URLs in the native app or Codex IAB"
+  default_prompt: "Show my saved URLs in the Codex Browser/IAB Vault."
