@@ -3,7 +3,7 @@ import Foundation
 struct VaultBookmark: Codable, Identifiable, Hashable {
     let id: String
     let url: String
-    let canonicalURL: String
+    let canonicalUrl: String
     var title: String?
     var description: String?
     var note: String?
@@ -48,7 +48,7 @@ struct VaultCategory: Codable, Identifiable, Hashable {
 }
 
 struct VaultSnapshot: Codable, Hashable {
-    let bookmarkID: String
+    let bookmarkId: String
     let artifactPath: String
     let sha256: String
     let kind: String
@@ -64,7 +64,7 @@ struct VaultSnapshot: Codable, Hashable {
 
 struct VaultMutation<Item: Codable>: Codable {
     let item: Item
-    let canonicalHTML: String
+    let canonicalHtml: String
 }
 
 struct VaultInitResult: Codable {
@@ -88,7 +88,7 @@ struct VaultImportResult: Codable {
     let created: Int
     let updated: Int
     let skipped: Int
-    let canonicalHTML: String
+    let canonicalHtml: String
 }
 
 struct VaultSnapshotIdentity: Codable {
