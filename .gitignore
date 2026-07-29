@@ -1,0 +1,6 @@
+/target/
+/dist/
+/macos/.build/
+/macos/Libraries/
+/macos/.swiftpm/
+/.DS_Store
