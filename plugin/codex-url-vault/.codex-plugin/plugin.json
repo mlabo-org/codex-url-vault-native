@@ -1,0 +1,40 @@
+{
+  "name": "codex-url-vault",
+  "version": "0.1.0",
+  "description": "Native local URL library for saving, searching, importing, opening, categorizing, and preserving web references with Codex.",
+  "author": {
+    "name": "Suzuki Makoto"
+  },
+  "license": "MIT",
+  "keywords": [
+    "URL vault",
+    "bookmarks",
+    "saved links",
+    "snapshot search",
+    "bookmark import",
+    "native macOS",
+    "stdio MCP"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Codex URL Vault",
+    "shortDescription": "Save, search, open, import, and preserve URLs locally.",
+    "longDescription": "A native macOS URL library with a SwiftUI app and task-oriented stdio MCP tools. Search saved links and verified preserved text, manage categories, import browser bookmarks, and open selected URLs.",
+    "developerName": "Suzuki Makoto",
+    "category": "Productivity",
+    "capabilities": [
+      "Native macOS app",
+      "Local URL search",
+      "Bookmark import",
+      "Verified text snapshots",
+      "Category management",
+      "Task-oriented MCP tools"
+    ],
+    "defaultPrompt": [
+      "Open Codex URL Vault and show my saved URLs.",
+      "Find the saved URL about my current topic.",
+      "Save this URL to Codex URL Vault."
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}

@@ -1,0 +1,18 @@
+[package]
+name = "url-vault-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+url-vault-core = { path = "../url-vault-core" }
+
+[[bin]]
+name = "url-vault"
+path = "src/main.rs"
+
+[lints]
+workspace = true
