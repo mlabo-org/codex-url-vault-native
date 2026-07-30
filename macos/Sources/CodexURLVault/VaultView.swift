@@ -1095,28 +1095,104 @@ private struct PromptSamplesView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appShellLanguage) private var language
 
+    private struct PromptSample: Identifiable {
+        let title: String
+        let route: String
+        let prompt: String
+
+        var id: String { route }
+    }
+
     private var strings: VaultStrings {
         VaultStrings(language: language)
     }
 
-    private var samples: [String] {
+    private var samples: [PromptSample] {
         if language.resolved == .japanese {
             return [
-                "$codex-url-vault を開いて",
-                "$codex-url-vault に https://example.com を保存。タイトルは「Example」、エイリアスは example、タグは reference",
-                "$codex-url-vault で保存済みURLにローカルのMarkdownスナップショットを追加して",
-                "$codex-url-vault で「Cloudflare SSL」を検索して候補を3件出して",
-                "$codex-url-vault に ~/Downloads/bookmarks.html を Brave のブックマークとして取り込んで",
-                "$codex-url-vault で保存URLを一覧して、エイリアス、タグ、カテゴリを整理して",
+                PromptSample(
+                    title: "ネイティブアプリを開く",
+                    route: "show_vault",
+                    prompt: "Codex URL Vaultのネイティブアプリを開いて。"
+                ),
+                PromptSample(
+                    title: "Codex内でカード表示する",
+                    route: "show_iab_vault → Codex Browser",
+                    prompt: "Codex URL VaultをCodex内のカード表示で開いて。"
+                ),
+                PromptSample(
+                    title: "詳細を付けてURLを保存する",
+                    route: "save_url",
+                    prompt: "Codex URL Vaultに https://example.com を保存して。タイトルは「Example」、カテゴリは「Research/Web」、エイリアスは「example」、タグは「reference」と「sample」、用途は「documentation」にして。"
+                ),
+                PromptSample(
+                    title: "保存済みURLを検索する",
+                    route: "search_urls",
+                    prompt: "Codex URL Vaultで「Cloudflare SSL」を検索して、関連度の高い候補を3件、タイトル・URL・カテゴリ付きで見せて。まだ開かないで。"
+                ),
+                PromptSample(
+                    title: "あいまいに探してから開く",
+                    route: "suggest_urls → open_url",
+                    prompt: "Codex URL Vaultで「CloudflareのSSL設定」を探して。候補が複数ある場合は一覧を出し、私が選んだURLだけをBraveで開いて。"
+                ),
+                PromptSample(
+                    title: "貼り付けた本文を保存版として残す",
+                    route: "save_snapshot",
+                    prompt: "Codex URL Vaultに保存済みの https://example.com へ、次のMarkdown本文を保存版として記録して。Webページは取得せず、この本文をそのまま保存して。\n\n# Example\n確認済みの要点です。"
+                ),
+                PromptSample(
+                    title: "ブックマークを確認してから取り込む",
+                    route: "preview_bookmark_import → apply_bookmark_import",
+                    prompt: "~/Downloads/bookmarks.html をCodex URL Vaultへ取り込む前にプレビューして、追加・重複・エラー件数を見せて。まだ実行せず、私が取り込みモードを選んだ後に取り込んで。"
+                ),
+                PromptSample(
+                    title: "既存URLを整理する",
+                    route: "get_url → update_url / move_url",
+                    prompt: "Codex URL Vaultでエイリアス「example」の保存内容を確認してから、「Research/Web」カテゴリへ移動し、既存タグを残したまま「sample」を追加して。完了後に更新結果を見せて。"
+                ),
             ]
         }
         return [
-            "Use $codex-url-vault to open the local Vault.",
-            "Use $codex-url-vault to save https://example.com with title Example, alias example, and tag reference.",
-            "Use $codex-url-vault to attach a local Markdown snapshot to a saved URL.",
-            "Use $codex-url-vault to search saved URLs and snapshots for Cloudflare SSL.",
-            "Use $codex-url-vault to import ~/Downloads/bookmarks.html from Brave.",
-            "Use $codex-url-vault to list saved URLs and organize aliases, tags, and categories.",
+            PromptSample(
+                title: "Open the native app",
+                route: "show_vault",
+                prompt: "Open the native Codex URL Vault app."
+            ),
+            PromptSample(
+                title: "Show the card view inside Codex",
+                route: "show_iab_vault → Codex Browser",
+                prompt: "Open Codex URL Vault as a card view inside Codex."
+            ),
+            PromptSample(
+                title: "Save a URL with details",
+                route: "save_url",
+                prompt: "Save https://example.com in Codex URL Vault with the title “Example,” category “Research/Web,” alias “example,” tags “reference” and “sample,” and intent “documentation.”"
+            ),
+            PromptSample(
+                title: "Search saved URLs",
+                route: "search_urls",
+                prompt: "Search Codex URL Vault for “Cloudflare SSL” and show the three most relevant candidates with title, URL, and category. Do not open anything yet."
+            ),
+            PromptSample(
+                title: "Resolve a vague request, then open",
+                route: "suggest_urls → open_url",
+                prompt: "Find my saved link about Cloudflare SSL configuration in Codex URL Vault. If there are multiple candidates, show them first and open only the one I select in Brave."
+            ),
+            PromptSample(
+                title: "Preserve supplied text",
+                route: "save_snapshot",
+                prompt: "For https://example.com in Codex URL Vault, preserve the following Markdown as its saved copy. Do not fetch the web page; save this text verbatim.\n\n# Example\nThese are the verified notes."
+            ),
+            PromptSample(
+                title: "Preview bookmarks before importing",
+                route: "preview_bookmark_import → apply_bookmark_import",
+                prompt: "Preview ~/Downloads/bookmarks.html before importing it into Codex URL Vault. Show the added, duplicate, and error counts, but do not apply it until I choose the import mode."
+            ),
+            PromptSample(
+                title: "Organize an existing URL",
+                route: "get_url → update_url / move_url",
+                prompt: "In Codex URL Vault, inspect the saved URL with alias “example,” move it to “Research/Web,” and add the tag “sample” without removing its existing tags. Show the updated result."
+            ),
         ]
     }
 
@@ -1129,19 +1205,36 @@ private struct PromptSamplesView: View {
                 Button(strings.close) { dismiss() }
             }
 
+            Text(strings.promptSamplesHelp)
+                .appFont(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
             ScrollView {
                 LazyVStack(spacing: 10) {
-                    ForEach(samples, id: \.self) { sample in
-                        HStack(alignment: .top, spacing: 12) {
-                            Text(sample)
-                                .font(.system(.body, design: .monospaced))
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            Button(strings.copy) {
-                                NSPasteboard.general.clearContents()
-                                NSPasteboard.general.setString(sample, forType: .string)
+                    ForEach(samples) { sample in
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                                Text(sample.title)
+                                    .appFont(.headline, weight: .semibold)
+                                Spacer()
+                                Text("\(strings.mcpRoute): \(sample.route)")
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
                             }
-                            .buttonStyle(.bordered)
+
+                            HStack(alignment: .top, spacing: 12) {
+                                Text(sample.prompt)
+                                    .font(.system(.body, design: .monospaced))
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                Button(strings.copy) {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(sample.prompt, forType: .string)
+                                }
+                                .buttonStyle(.bordered)
+                            }
                         }
                         .padding(12)
                         .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
@@ -1150,7 +1243,7 @@ private struct PromptSamplesView: View {
             }
         }
         .padding(24)
-        .frame(width: 760, height: 560)
+        .frame(width: 820, height: 680)
     }
 }
 
@@ -1239,7 +1332,14 @@ struct VaultStrings {
     var ok: String { "OK" }
     var language: String { text("言語", "Language") }
     var theme: String { text("テーマ", "Theme") }
-    var promptSamples: String { text("プロンプト例", "Prompt Examples") }
+    var promptSamples: String { text("Codexへの依頼例", "Example Requests for Codex") }
+    var promptSamplesHelp: String {
+        text(
+            "Codexには自然な言葉で依頼できます。スキル呼び出し記法やMCPツール名の入力は不要です。各例には、プラグインが内部で選ぶ主なMCPルートを併記しています。",
+            "Ask Codex in natural language. You do not need to enter a skill invocation or MCP tool name. Each example also shows the main MCP route the plugin selects internally."
+        )
+    }
+    var mcpRoute: String { text("主なMCP", "Primary MCP") }
     var copy: String { text("コピー", "Copy") }
     var addCategory: String { text("カテゴリを追加", "Add Category") }
     var editCategory: String { text("カテゴリを編集", "Edit Category") }
