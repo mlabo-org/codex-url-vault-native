@@ -1,29 +1,178 @@
 const HOST_NAME = "com.suzukimakoto.codex_url_vault";
 const MENU_ID = "save-to-codex-url-vault";
+const NATIVE_TIMEOUT_MS = 8000;
+const MAX_RECONNECT_DELAY_MS = 30000;
+
+let nativePort = null;
+let reconnectTimer = null;
+let reconnectDelayMs = 1000;
+const pendingNativeRequests = new Map();
+
+class CaptureError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.code = code;
+  }
+}
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: MENU_ID,
-    title: "Codex URL Vaultに保存",
-    contexts: ["page", "link"],
-  });
-});
-
-function sendNativeMessage(message) {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendNativeMessage(HOST_NAME, message, (response) => {
-      const transportError = chrome.runtime.lastError;
-      if (transportError) {
-        reject(new Error(transportError.message));
-        return;
-      }
-      if (!response?.ok) {
-        reject(new Error(response?.error?.message || "Native Host error"));
-        return;
-      }
-      resolve(response.result || {});
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: MENU_ID,
+      title: "Codex URL Vaultに保存",
+      contexts: ["page", "link"],
     });
   });
+  connectNative();
+});
+
+chrome.runtime.onStartup.addListener(connectNative);
+
+function connectNative() {
+  if (nativePort) return nativePort;
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  const port = chrome.runtime.connectNative(HOST_NAME);
+  nativePort = port;
+  port.onMessage.addListener((message) => {
+    reconnectDelayMs = 1000;
+    void handleNativeMessage(message, port);
+  });
+  port.onDisconnect.addListener(() => {
+    const reason = chrome.runtime.lastError?.message || "Native Host disconnected";
+    if (nativePort === port) nativePort = null;
+    rejectPendingNativeRequests(reason);
+    scheduleReconnect();
+  });
+  return port;
+}
+
+function scheduleReconnect() {
+  if (reconnectTimer || nativePort) return;
+  const delay = reconnectDelayMs;
+  reconnectDelayMs = Math.min(reconnectDelayMs * 2, MAX_RECONNECT_DELAY_MS);
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connectNative();
+  }, delay);
+}
+
+function rejectPendingNativeRequests(message) {
+  for (const { reject, timeout } of pendingNativeRequests.values()) {
+    clearTimeout(timeout);
+    reject(new Error(message));
+  }
+  pendingNativeRequests.clear();
+}
+
+function nativeRequest(message) {
+  return new Promise((resolve, reject) => {
+    const port = connectNative();
+    const timeout = setTimeout(() => {
+      pendingNativeRequests.delete(message.id);
+      reject(new Error("Native Host request timed out"));
+    }, NATIVE_TIMEOUT_MS);
+    pendingNativeRequests.set(message.id, { resolve, reject, timeout });
+    try {
+      port.postMessage(message);
+    } catch (error) {
+      clearTimeout(timeout);
+      pendingNativeRequests.delete(message.id);
+      reject(error);
+    }
+  });
+}
+
+async function handleNativeMessage(message, port) {
+  if (message?.type === "capture_current_page") {
+    await returnCurrentPage(message.id, port);
+    return;
+  }
+  const pending = pendingNativeRequests.get(message?.id);
+  if (!pending) return;
+  clearTimeout(pending.timeout);
+  pendingNativeRequests.delete(message.id);
+  if (!message.ok) {
+    const error = new Error(message.error?.message || "Native Host error");
+    error.code = message.error?.code || "native_host_error";
+    pending.reject(error);
+    return;
+  }
+  pending.resolve(message.result || {});
+}
+
+async function returnCurrentPage(id, port) {
+  try {
+    const page = await captureStableCurrentPage();
+    port.postMessage({
+      type: "current_page_result",
+      id,
+      ok: true,
+      url: page.url,
+      title: page.title,
+      tab_id: page.tabId,
+      window_id: page.windowId,
+      captured_at: new Date().toISOString(),
+    });
+  } catch (error) {
+    port.postMessage({
+      type: "current_page_result",
+      id,
+      ok: false,
+      error: {
+        code: error.code || "capture_failed",
+        message: error.message || "現在のBraveページを取得できません。",
+      },
+    });
+  }
+}
+
+async function captureStableCurrentPage() {
+  const focusedWindow = await chrome.windows.getLastFocused({
+    windowTypes: ["normal"],
+  });
+  if (!focusedWindow?.id || !focusedWindow.focused) {
+    throw new CaptureError(
+      "brave_not_focused",
+      "Braveの通常ウィンドウが前面にありません。",
+    );
+  }
+  const [tab] = await chrome.tabs.query({
+    active: true,
+    windowId: focusedWindow.id,
+  });
+  const initialUrl = webUrl(tab?.url || "");
+  if (!tab?.id || !initialUrl) {
+    throw new CaptureError(
+      "unsupported_url",
+      "現在のタブはhttp / httpsページではありません。",
+    );
+  }
+
+  const [currentWindow, currentTab] = await Promise.all([
+    chrome.windows.get(focusedWindow.id),
+    chrome.tabs.get(tab.id),
+  ]);
+  const currentUrl = webUrl(currentTab.url || "");
+  if (
+    !currentWindow.focused
+    || !currentTab.active
+    || currentTab.windowId !== focusedWindow.id
+    || currentUrl !== initialUrl
+  ) {
+    throw new CaptureError(
+      "capture_target_changed",
+      "取得中にBraveの対象タブが変わりました。",
+    );
+  }
+  return {
+    url: currentUrl,
+    title: currentTab.title || currentUrl,
+    tabId: currentTab.id,
+    windowId: currentTab.windowId,
+  };
 }
 
 function webUrl(value) {
@@ -41,6 +190,21 @@ async function showBadge(tabId, text, color) {
   setTimeout(() => chrome.action.setBadgeText({ tabId, text: "" }), 1800);
 }
 
+chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
+  if (request?.type !== "native_request" || !request.message?.id) return false;
+  nativeRequest(request.message).then(
+    (result) => sendResponse({ ok: true, result }),
+    (error) => sendResponse({
+      ok: false,
+      error: {
+        code: error.code || "native_host_error",
+        message: error.message || "Native Host error",
+      },
+    }),
+  );
+  return true;
+});
+
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== MENU_ID || !tab?.id) return;
   const targetUrl = webUrl(info.linkUrl || info.pageUrl || tab.url || "");
@@ -55,7 +219,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     .map((item) => item.trim())
     .filter(Boolean);
   try {
-    await sendNativeMessage({
+    await nativeRequest({
       type: "save_url",
       id: crypto.randomUUID(),
       url: targetUrl,
@@ -69,3 +233,5 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     await showBadge(tab.id, "!", "#c33d4a");
   }
 });
+
+connectNative();

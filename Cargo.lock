@@ -1226,6 +1226,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "url-vault-core",
+ "url-vault-native-host",
  "url-vault-viewer",
 ]
 

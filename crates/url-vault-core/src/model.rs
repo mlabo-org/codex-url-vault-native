@@ -102,6 +102,20 @@ pub struct MutationResult<T> {
     pub canonical_html: String,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SaveOperation {
+    Created,
+    Updated,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SaveUrlResult {
+    pub item: Bookmark,
+    pub canonical_html: String,
+    pub operation: SaveOperation,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SuggestResult {
     pub query: String,

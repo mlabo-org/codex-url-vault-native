@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 use url_vault_core::{Vault, VaultError};
+use url_vault_native_host::{SaveCurrentBravePageInput, request_save_current_brave_page};
 use url_vault_viewer::start_iab_viewer;
 
 pub const MCP_PROTOCOL_VERSION: &str = "2025-06-18";
@@ -63,7 +64,7 @@ fn initialize_result(_params: Option<&Value>) -> Value {
             "title": "Codex URL Vault",
             "version": env!("CARGO_PKG_VERSION")
         },
-        "instructions": "Use task-oriented URL Vault tools. Suggest before opening vague requests, preserve snapshots only from explicit UTF-8 content, use show_vault for the independent native app, and use show_iab_vault when the user wants the card-based Vault inside Codex Browser/IAB."
+        "instructions": "Use task-oriented URL Vault tools. Use save_current_brave_page for requests such as 'save this URL' that refer to the currently focused Brave page; never infer that URL from the screen. Suggest before opening vague requests, preserve snapshots only from explicit UTF-8 content, use show_vault for the independent native app, and use show_iab_vault when the user wants the card-based Vault inside Codex Browser/IAB."
     })
 }
 
@@ -119,6 +120,11 @@ fn call_tool(name: &str, arguments: &Value) -> Result<Value, VaultError> {
         "save_url" => Ok(serde_json::to_value(
             vault.save_url(from_value(arguments)?)?,
         )?),
+        "save_current_brave_page" => request_save_current_brave_page(
+            &vault,
+            from_value::<SaveCurrentBravePageInput>(arguments)?,
+        )
+        .map_err(|error| VaultError::InvalidInput(error.to_string())),
         "update_url" => {
             let target = required_string(arguments, "target")?;
             let input = arguments.get("changes").ok_or_else(|| {
@@ -225,6 +231,12 @@ fn tool_records() -> Vec<Value> {
             "Save or upsert one URL with title, notes, tags, aliases, intents, category, project, and browser metadata.",
             save_url_schema(),
             write_annotations("Save a URL", false, false),
+        ),
+        tool(
+            "save_current_brave_page",
+            "Save the exact current Brave http/https page when the user says 'save this URL', 'save this page', or asks to capture the current Brave tab. Uses the bundled extension bridge for URL and title; never infers them from screen content.",
+            save_current_brave_page_schema(),
+            action_annotations("Save the current Brave page"),
         ),
         tool(
             "update_url",
@@ -379,6 +391,17 @@ fn save_url_schema() -> Value {
             ("preferred_browser", string()),
             ("project", string()),
             ("status", string()),
+        ],
+    )
+}
+
+fn save_current_brave_page_schema() -> Value {
+    schema(
+        &[],
+        &[
+            ("folder_path", string()),
+            ("tags", string_array()),
+            ("note", string()),
         ],
     )
 }
@@ -542,9 +565,21 @@ mod tests {
     #[test]
     fn lists_task_oriented_tools_and_annotations() {
         let tools = tool_records();
-        assert_eq!(tools.len(), 20);
+        assert_eq!(tools.len(), 21);
         assert!(tools.iter().any(|tool| tool["name"] == "show_vault"));
         assert!(tools.iter().any(|tool| tool["name"] == "show_iab_vault"));
+        let current_page = tools
+            .iter()
+            .find(|tool| tool["name"] == "save_current_brave_page")
+            .expect("current Brave page tool");
+        assert!(
+            current_page["description"]
+                .as_str()
+                .unwrap()
+                .contains("save this URL")
+        );
+        assert_eq!(current_page["inputSchema"]["required"], json!([]));
+        assert_eq!(current_page["annotations"]["openWorldHint"], true);
         assert_eq!(
             tools
                 .iter()

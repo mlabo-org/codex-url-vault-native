@@ -1,4 +1,13 @@
+use std::collections::HashMap;
+use std::fs;
 use std::io::{self, Read, Write};
+use std::os::unix::fs::{FileTypeExt, PermissionsExt};
+use std::os::unix::net::{UnixListener, UnixStream};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, mpsc};
+use std::thread;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -7,7 +16,11 @@ use url_vault_core::{SaveUrlInput, Vault, VaultError};
 
 pub const HOST_NAME: &str = "com.suzukimakoto.codex_url_vault";
 pub const EXTENSION_ID: &str = "fhijpanhohijhimeiajdgfhcpipbhkkh";
+pub const BRIDGE_SOCKET_NAME: &str = ".brave-current-page.sock";
 const MAX_MESSAGE_BYTES: usize = 1024 * 1024;
+const BRIDGE_IO_TIMEOUT: Duration = Duration::from_secs(8);
+const LISTENER_POLL_INTERVAL: Duration = Duration::from_millis(20);
+static REQUEST_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Debug, thiserror::Error)]
 pub enum HostError {
@@ -21,6 +34,14 @@ pub enum HostError {
     MessageTooLarge,
     #[error("native host only accepts http and https URLs")]
     UnsupportedUrl,
+    #[error("Brave capture bridge is already running")]
+    BridgeAlreadyRunning,
+    #[error("Brave capture bridge is unavailable: {0}")]
+    BridgeUnavailable(String),
+    #[error("Brave capture bridge protocol error: {0}")]
+    BridgeProtocol(String),
+    #[error("Brave current-page capture failed ({code}): {message}")]
+    Capture { code: String, message: String },
 }
 
 #[derive(Debug, Deserialize)]
@@ -44,17 +65,32 @@ pub enum NativeRequest {
         #[serde(default)]
         note: String,
     },
+    CurrentPageResult {
+        id: String,
+        ok: bool,
+        #[serde(default)]
+        url: String,
+        #[serde(default)]
+        title: String,
+        tab_id: Option<i64>,
+        window_id: Option<i64>,
+        captured_at: Option<String>,
+        error: Option<NativeError>,
+    },
 }
 
 impl NativeRequest {
     fn id(&self) -> &str {
         match self {
-            Self::Ping { id } | Self::ListCategories { id } | Self::SaveUrl { id, .. } => id,
+            Self::Ping { id }
+            | Self::ListCategories { id }
+            | Self::SaveUrl { id, .. }
+            | Self::CurrentPageResult { id, .. } => id,
         }
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NativeResponse {
     pub id: Option<String>,
     pub ok: bool,
@@ -64,7 +100,7 @@ pub struct NativeResponse {
     pub error: Option<NativeError>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NativeError {
     pub code: String,
     pub message: String,
@@ -93,6 +129,51 @@ impl NativeResponse {
     }
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SaveCurrentBravePageInput {
+    pub folder_path: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum BridgeRequest {
+    SaveCurrentBravePage {
+        id: String,
+        folder_path: Option<String>,
+        #[serde(default)]
+        tags: Vec<String>,
+        note: Option<String>,
+    },
+}
+
+struct PendingCapture {
+    stream: UnixStream,
+    input: SaveCurrentBravePageInput,
+}
+
+enum BridgeEvent {
+    NativePayload(Vec<u8>),
+    NativeClosed,
+    NativeReadError(String),
+    LocalPayload(Vec<u8>, UnixStream),
+    ListenerError(String),
+}
+
+struct SocketGuard {
+    path: PathBuf,
+}
+
+impl Drop for SocketGuard {
+    fn drop(&mut self) {
+        if fs::symlink_metadata(&self.path).is_ok_and(|metadata| metadata.file_type().is_socket()) {
+            let _ = fs::remove_file(&self.path);
+        }
+    }
+}
+
 pub fn serve<R: Read, W: Write>(
     mut reader: R,
     mut writer: W,
@@ -108,12 +189,144 @@ pub fn serve<R: Read, W: Write>(
     Ok(())
 }
 
+pub fn serve_bridge<R: Read + Send + 'static, W: Write>(
+    reader: R,
+    mut writer: W,
+    vault: &Vault,
+) -> Result<(), HostError> {
+    let socket_path = bridge_socket_path(vault);
+    let listener = bind_bridge_listener(&socket_path)?;
+    let _socket_guard = SocketGuard {
+        path: socket_path.clone(),
+    };
+    let stop = Arc::new(AtomicBool::new(false));
+    let (events_tx, events_rx) = mpsc::channel();
+
+    let native_tx = events_tx.clone();
+    thread::spawn(move || read_native_events(reader, native_tx));
+
+    let listener_tx = events_tx.clone();
+    let listener_stop = Arc::clone(&stop);
+    thread::spawn(move || accept_local_requests(listener, listener_tx, listener_stop));
+    drop(events_tx);
+
+    let mut pending = HashMap::<String, PendingCapture>::new();
+    let result = loop {
+        let event = events_rx
+            .recv()
+            .map_err(|_| HostError::BridgeProtocol("bridge event channel closed".to_owned()))?;
+        match event {
+            BridgeEvent::NativePayload(payload) => {
+                let request = serde_json::from_slice::<NativeRequest>(&payload)?;
+                match request {
+                    NativeRequest::CurrentPageResult {
+                        id,
+                        ok,
+                        url,
+                        title,
+                        tab_id,
+                        window_id,
+                        captured_at,
+                        error,
+                    } => {
+                        handle_current_page_result(
+                            vault,
+                            &mut pending,
+                            CurrentPageCapture {
+                                id,
+                                ok,
+                                url,
+                                title,
+                                tab_id,
+                                window_id,
+                                captured_at,
+                                error,
+                            },
+                        )?;
+                    }
+                    request => {
+                        let response = handle_request(vault, request);
+                        write_frame(&mut writer, &response)?;
+                    }
+                }
+            }
+            BridgeEvent::LocalPayload(payload, mut stream) => {
+                handle_local_request(&payload, &mut stream, &mut writer, &mut pending)?;
+            }
+            BridgeEvent::NativeClosed => break Ok(()),
+            BridgeEvent::NativeReadError(error) => {
+                break Err(HostError::BridgeProtocol(error));
+            }
+            BridgeEvent::ListenerError(error) => {
+                break Err(HostError::BridgeUnavailable(error));
+            }
+        }
+    };
+
+    stop.store(true, Ordering::Release);
+    let disconnected = NativeResponse::failure(
+        None,
+        "bridge_disconnected",
+        "Brave extension disconnected before capture completed",
+    );
+    for (_, mut capture) in pending {
+        let _ = write_frame(&mut capture.stream, &disconnected);
+    }
+    result
+}
+
+pub fn request_save_current_brave_page(
+    vault: &Vault,
+    input: SaveCurrentBravePageInput,
+) -> Result<Value, HostError> {
+    let socket_path = bridge_socket_path(vault);
+    let mut stream = UnixStream::connect(&socket_path).map_err(|error| {
+        HostError::BridgeUnavailable(format!("{}: {error}", socket_path.display()))
+    })?;
+    stream.set_read_timeout(Some(BRIDGE_IO_TIMEOUT))?;
+    stream.set_write_timeout(Some(BRIDGE_IO_TIMEOUT))?;
+    let id = format!(
+        "mcp-{}-{}",
+        std::process::id(),
+        REQUEST_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    );
+    let request = BridgeRequest::SaveCurrentBravePage {
+        id,
+        folder_path: input.folder_path,
+        tags: input.tags,
+        note: input.note,
+    };
+    write_frame(&mut stream, &request)?;
+    let payload = read_frame(&mut stream)?.ok_or_else(|| {
+        HostError::BridgeProtocol("bridge closed without a capture response".to_owned())
+    })?;
+    let response = serde_json::from_slice::<NativeResponse>(&payload)?;
+    if response.ok {
+        return response
+            .result
+            .ok_or_else(|| HostError::BridgeProtocol("capture result is missing".to_owned()));
+    }
+    let error = response.error.unwrap_or(NativeError {
+        code: "capture_failed".to_owned(),
+        message: "Brave current-page capture failed".to_owned(),
+    });
+    Err(HostError::Capture {
+        code: error.code,
+        message: error.message,
+    })
+}
+
+pub fn bridge_socket_path(vault: &Vault) -> PathBuf {
+    vault.home().join(BRIDGE_SOCKET_NAME)
+}
+
 pub fn handle_request(vault: &Vault, request: NativeRequest) -> NativeResponse {
     let id = request.id().to_owned();
     let result = match request {
         NativeRequest::Ping { .. } => Ok(json!({
             "host": HOST_NAME,
             "version": env!("CARGO_PKG_VERSION"),
+            "bridge_socket": bridge_socket_path(vault),
         })),
         NativeRequest::ListCategories { .. } => vault
             .list_categories()
@@ -127,11 +340,222 @@ pub fn handle_request(vault: &Vault, request: NativeRequest) -> NativeResponse {
             note,
             ..
         } => save_url(vault, &url, &title, &category, tags, &note),
+        NativeRequest::CurrentPageResult { .. } => Err(HostError::BridgeProtocol(
+            "capture results require the persistent bridge".to_owned(),
+        )),
     };
     match result {
         Ok(value) => NativeResponse::success(id, value),
         Err(error) => NativeResponse::failure(Some(id), error_code(&error), error.to_string()),
     }
+}
+
+struct CurrentPageCapture {
+    id: String,
+    ok: bool,
+    url: String,
+    title: String,
+    tab_id: Option<i64>,
+    window_id: Option<i64>,
+    captured_at: Option<String>,
+    error: Option<NativeError>,
+}
+
+fn handle_current_page_result(
+    vault: &Vault,
+    pending: &mut HashMap<String, PendingCapture>,
+    capture: CurrentPageCapture,
+) -> Result<(), HostError> {
+    let Some(mut request) = pending.remove(&capture.id) else {
+        return Err(HostError::BridgeProtocol(format!(
+            "unknown current-page request id: {}",
+            capture.id
+        )));
+    };
+    let response = if capture.ok {
+        let tab_id = capture.tab_id.ok_or_else(|| {
+            HostError::BridgeProtocol("capture result is missing tab_id".to_owned())
+        })?;
+        let window_id = capture.window_id.ok_or_else(|| {
+            HostError::BridgeProtocol("capture result is missing window_id".to_owned())
+        })?;
+        let mut result = save_url(
+            vault,
+            &capture.url,
+            &capture.title,
+            request.input.folder_path.as_deref().unwrap_or_default(),
+            request.input.tags,
+            request.input.note.as_deref().unwrap_or_default(),
+        )?;
+        let result_object = result.as_object_mut().ok_or_else(|| {
+            HostError::BridgeProtocol("save result is not a JSON object".to_owned())
+        })?;
+        result_object.insert(
+            "capture".to_owned(),
+            json!({
+                "browser": "brave",
+                "tab_id": tab_id,
+                "window_id": window_id,
+                "captured_at": capture.captured_at,
+            }),
+        );
+        NativeResponse::success(capture.id, result)
+    } else {
+        let error = capture.error.unwrap_or(NativeError {
+            code: "capture_failed".to_owned(),
+            message: "Brave current-page capture failed".to_owned(),
+        });
+        NativeResponse::failure(Some(capture.id), &error.code, error.message)
+    };
+    if let Err(error) = write_frame(&mut request.stream, &response) {
+        eprintln!("url-vault-native-host: local capture response failed: {error}");
+    }
+    Ok(())
+}
+
+fn handle_local_request(
+    payload: &[u8],
+    stream: &mut UnixStream,
+    writer: &mut impl Write,
+    pending: &mut HashMap<String, PendingCapture>,
+) -> Result<(), HostError> {
+    let request = match serde_json::from_slice::<BridgeRequest>(payload) {
+        Ok(request) => request,
+        Err(error) => {
+            let response =
+                NativeResponse::failure(None, "invalid_bridge_request", error.to_string());
+            write_frame(stream, &response)?;
+            return Ok(());
+        }
+    };
+    match request {
+        BridgeRequest::SaveCurrentBravePage {
+            id,
+            folder_path,
+            tags,
+            note,
+        } => {
+            if pending.contains_key(&id) {
+                let response = NativeResponse::failure(
+                    Some(id),
+                    "duplicate_request",
+                    "capture request id is already pending",
+                );
+                write_frame(stream, &response)?;
+                return Ok(());
+            }
+            let capture_command = json!({
+                "type": "capture_current_page",
+                "id": id,
+            });
+            pending.insert(
+                id.clone(),
+                PendingCapture {
+                    stream: stream.try_clone()?,
+                    input: SaveCurrentBravePageInput {
+                        folder_path,
+                        tags: normalize_list(tags),
+                        note,
+                    },
+                },
+            );
+            if let Err(error) = write_frame(writer, &capture_command) {
+                pending.remove(&id);
+                let response = NativeResponse::failure(
+                    Some(id),
+                    "bridge_disconnected",
+                    "Brave extension is not connected",
+                );
+                let _ = write_frame(stream, &response);
+                return Err(error);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn read_native_events(mut reader: impl Read, events: mpsc::Sender<BridgeEvent>) {
+    loop {
+        match read_frame(&mut reader) {
+            Ok(Some(payload)) => {
+                if events.send(BridgeEvent::NativePayload(payload)).is_err() {
+                    break;
+                }
+            }
+            Ok(None) => {
+                let _ = events.send(BridgeEvent::NativeClosed);
+                break;
+            }
+            Err(error) => {
+                let _ = events.send(BridgeEvent::NativeReadError(error.to_string()));
+                break;
+            }
+        }
+    }
+}
+
+fn accept_local_requests(
+    listener: UnixListener,
+    events: mpsc::Sender<BridgeEvent>,
+    stop: Arc<AtomicBool>,
+) {
+    while !stop.load(Ordering::Acquire) {
+        match listener.accept() {
+            Ok((mut stream, _)) => {
+                let _ = stream.set_read_timeout(Some(BRIDGE_IO_TIMEOUT));
+                let _ = stream.set_write_timeout(Some(BRIDGE_IO_TIMEOUT));
+                match read_frame(&mut stream) {
+                    Ok(Some(payload)) => {
+                        if events
+                            .send(BridgeEvent::LocalPayload(payload, stream))
+                            .is_err()
+                        {
+                            break;
+                        }
+                    }
+                    Ok(None) => {}
+                    Err(error) => {
+                        let response = NativeResponse::failure(
+                            None,
+                            "invalid_bridge_request",
+                            error.to_string(),
+                        );
+                        let _ = write_frame(&mut stream, &response);
+                    }
+                }
+            }
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                thread::sleep(LISTENER_POLL_INTERVAL);
+            }
+            Err(error) => {
+                let _ = events.send(BridgeEvent::ListenerError(error.to_string()));
+                break;
+            }
+        }
+    }
+}
+
+fn bind_bridge_listener(path: &Path) -> Result<UnixListener, HostError> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    if path.exists() {
+        if UnixStream::connect(path).is_ok() {
+            return Err(HostError::BridgeAlreadyRunning);
+        }
+        let metadata = fs::symlink_metadata(path)?;
+        if !metadata.file_type().is_socket() {
+            return Err(HostError::BridgeUnavailable(format!(
+                "{} exists and is not a Unix socket",
+                path.display()
+            )));
+        }
+        fs::remove_file(path)?;
+    }
+    let listener = UnixListener::bind(path)?;
+    fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
+    listener.set_nonblocking(true)?;
+    Ok(listener)
 }
 
 fn save_url(
@@ -146,7 +570,7 @@ fn save_url(
     if !matches!(parsed.scheme(), "http" | "https") {
         return Err(HostError::UnsupportedUrl);
     }
-    let result = vault.save_url(SaveUrlInput {
+    let result = vault.save_url_with_operation(SaveUrlInput {
         url: parsed.to_string(),
         title: optional_text(title),
         note: optional_text(note),
@@ -158,6 +582,7 @@ fn save_url(
         ..SaveUrlInput::default()
     })?;
     Ok(json!({
+        "operation": result.operation,
         "bookmark": {
             "id": result.item.id,
             "url": result.item.url,
@@ -193,6 +618,10 @@ fn error_code(error: &HostError) -> &'static str {
         HostError::MessageTooLarge => "message_too_large",
         HostError::Json(_) => "invalid_json",
         HostError::Io(_) => "io_error",
+        HostError::BridgeAlreadyRunning => "bridge_already_running",
+        HostError::BridgeUnavailable(_) => "bridge_unavailable",
+        HostError::BridgeProtocol(_) => "bridge_protocol",
+        HostError::Capture { .. } => "capture_failed",
     }
 }
 
@@ -212,8 +641,8 @@ fn read_frame(reader: &mut impl Read) -> Result<Option<Vec<u8>>, HostError> {
     Ok(Some(payload))
 }
 
-fn write_frame(writer: &mut impl Write, response: &NativeResponse) -> Result<(), HostError> {
-    let payload = serde_json::to_vec(response)?;
+fn write_frame(writer: &mut impl Write, value: &impl Serialize) -> Result<(), HostError> {
+    let payload = serde_json::to_vec(value)?;
     let length = u32::try_from(payload.len()).map_err(|_| HostError::MessageTooLarge)?;
     writer.write_all(&length.to_le_bytes())?;
     writer.write_all(&payload)?;
@@ -233,7 +662,7 @@ pub fn brave_manifest(host_path: &str) -> Value {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
+    use std::time::Instant;
 
     use super::*;
 
@@ -242,7 +671,7 @@ mod tests {
         let response = NativeResponse::success("one", json!({ "pong": true }));
         let mut bytes = Vec::new();
         write_frame(&mut bytes, &response).expect("write native frame");
-        let payload = read_frame(&mut Cursor::new(bytes))
+        let payload = read_frame(&mut io::Cursor::new(bytes))
             .expect("read native frame")
             .expect("frame");
         let value: Value = serde_json::from_slice(&payload).expect("response JSON");
@@ -251,22 +680,23 @@ mod tests {
     }
 
     #[test]
-    fn save_request_uses_the_shared_core() {
+    fn save_request_uses_the_shared_core_and_reports_operation() {
         let home = tempfile::tempdir().expect("temporary Vault");
         let vault = Vault::at(home.path()).expect("Vault");
         vault.init().expect("initialize Vault");
-        let response = handle_request(
-            &vault,
-            NativeRequest::SaveUrl {
-                id: "save-one".to_owned(),
-                url: "https://example.test/extension".to_owned(),
-                title: "Extension capture".to_owned(),
-                category: "Browser/Inbox".to_owned(),
-                tags: vec!["brave".to_owned(), "capture".to_owned()],
-                note: "Saved by test".to_owned(),
-            },
-        );
-        assert!(response.ok);
+        let request = || NativeRequest::SaveUrl {
+            id: "save-one".to_owned(),
+            url: "https://example.test/extension".to_owned(),
+            title: "Extension capture".to_owned(),
+            category: "Browser/Inbox".to_owned(),
+            tags: vec!["brave".to_owned(), "capture".to_owned()],
+            note: "Saved by test".to_owned(),
+        };
+        let created = handle_request(&vault, request());
+        let updated = handle_request(&vault, request());
+        assert!(created.ok);
+        assert_eq!(created.result.as_ref().unwrap()["operation"], "created");
+        assert_eq!(updated.result.as_ref().unwrap()["operation"], "updated");
         let saved = vault
             .search_urls("Extension capture", 5)
             .expect("search saved URL");
@@ -274,6 +704,65 @@ mod tests {
         assert_eq!(saved[0].folder_path.as_deref(), Some("Browser/Inbox"));
         assert_eq!(saved[0].source_type, "browser_extension");
         assert_eq!(saved[0].source_browser.as_deref(), Some("brave"));
+    }
+
+    #[test]
+    fn persistent_bridge_captures_and_saves_the_current_page() {
+        let home = tempfile::tempdir().expect("temporary Vault");
+        let vault = Vault::at(home.path()).expect("Vault");
+        vault.init().expect("initialize Vault");
+        let client_vault = vault.clone();
+        let host_vault = vault.clone();
+        let (host_stream, mut extension_stream) =
+            UnixStream::pair().expect("native messaging pair");
+        let host_reader = host_stream.try_clone().expect("host reader");
+        let host = thread::spawn(move || serve_bridge(host_reader, host_stream, &host_vault));
+        let extension = thread::spawn(move || {
+            for _ in 0..2 {
+                let payload = read_frame(&mut extension_stream)
+                    .expect("read capture command")
+                    .expect("capture command");
+                let command: Value =
+                    serde_json::from_slice(&payload).expect("capture command JSON");
+                assert_eq!(command["type"], "capture_current_page");
+                write_frame(
+                    &mut extension_stream,
+                    &json!({
+                        "type": "current_page_result",
+                        "id": command["id"],
+                        "ok": true,
+                        "url": "https://example.test/current",
+                        "title": "Current Brave page",
+                        "tab_id": 17,
+                        "window_id": 4,
+                        "captured_at": "2026-07-31T00:00:00.000Z"
+                    }),
+                )
+                .expect("write capture result");
+            }
+        });
+        wait_for_socket(&bridge_socket_path(&client_vault));
+
+        let input = SaveCurrentBravePageInput {
+            folder_path: Some("Browser/Voice".to_owned()),
+            tags: vec!["voice".to_owned()],
+            note: None,
+        };
+        let created = request_save_current_brave_page(&client_vault, input.clone())
+            .expect("create current page");
+        let updated =
+            request_save_current_brave_page(&client_vault, input).expect("update current page");
+        assert_eq!(created["operation"], "created");
+        assert_eq!(updated["operation"], "updated");
+        assert_eq!(created["bookmark"]["title"], "Current Brave page");
+        assert_eq!(created["bookmark"]["folder_path"], "Browser/Voice");
+        assert_eq!(created["capture"]["tab_id"], 17);
+
+        extension.join().expect("extension thread");
+        host.join()
+            .expect("host thread")
+            .expect("persistent bridge");
+        assert!(!bridge_socket_path(&client_vault).exists());
     }
 
     #[test]
@@ -307,5 +796,16 @@ mod tests {
             manifest["allowed_origins"][0],
             format!("chrome-extension://{EXTENSION_ID}/")
         );
+    }
+
+    fn wait_for_socket(path: &Path) {
+        let started = Instant::now();
+        while !path.exists() {
+            assert!(
+                started.elapsed() < Duration::from_secs(2),
+                "bridge socket was not created"
+            );
+            thread::sleep(Duration::from_millis(5));
+        }
     }
 }

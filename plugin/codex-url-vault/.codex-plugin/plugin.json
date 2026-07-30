@@ -1,7 +1,7 @@
 {
   "name": "codex-url-vault",
   "version": "0.1.0",
-  "description": "Local URL library with a native macOS app, task-oriented MCP tools, a card-based Codex Browser/IAB viewer, and Brave current-page capture.",
+  "description": "Local URL library with task-oriented MCP tools for saved links, “save this URL” Brave current-page capture, a native macOS app, and Codex Browser/IAB.",
   "author": {
     "name": "Suzuki Makoto"
   },
@@ -18,13 +18,16 @@
     "Codex Browser",
     "local HTML viewer",
     "Brave extension",
-    "Native Messaging"
+    "Native Messaging",
+    "current Brave tab",
+    "save this URL",
+    "voice capture"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Codex URL Vault",
-    "shortDescription": "Use one local URL Vault from macOS, MCP, or Codex IAB.",
-    "longDescription": "A local URL library with a SwiftUI app, task-oriented stdio MCP tools, a responsive card-based Viewer for Codex Browser/IAB, and a Bitwarden-style Brave capture extension backed by a native Rust host.",
+    "shortDescription": "Save this Brave URL or manage one local Vault.",
+    "longDescription": "A local URL library with a SwiftUI app, task-oriented stdio MCP tools including voice-friendly current Brave page capture, a responsive Codex Browser/IAB Viewer, and a Brave extension backed by a native Rust host.",
     "developerName": "Suzuki Makoto",
     "category": "Productivity",
     "capabilities": [
@@ -36,12 +39,13 @@
       "Task-oriented MCP tools",
       "Card-based Codex Browser/IAB viewer",
       "Brave current-page capture",
+      "Voice or text save-this-URL capture",
       "Rust Native Messaging Host"
     ],
     "defaultPrompt": [
       "Open Codex URL Vault and show my saved URLs.",
       "Show Codex URL Vault inside Codex Browser/IAB, then find or save URLs for my current task.",
-      "Capture the current Brave page in Codex URL Vault."
+      "Save this URL—the current Brave page—to Codex URL Vault."
     ]
   },
   "mcpServers": "./.mcp.json"

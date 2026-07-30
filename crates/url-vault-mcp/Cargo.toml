@@ -8,6 +8,7 @@ license.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 url-vault-core = { path = "../url-vault-core" }
+url-vault-native-host = { path = "../url-vault-native-host" }
 url-vault-viewer = { path = "../url-vault-viewer" }
 
 [dev-dependencies]

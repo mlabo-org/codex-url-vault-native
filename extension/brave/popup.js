@@ -1,5 +1,3 @@
-const HOST_NAME = "com.suzukimakoto.codex_url_vault";
-
 const pageTitle = document.querySelector("#pageTitle");
 const pageUrl = document.querySelector("#pageUrl");
 const categoryInput = document.querySelector("#categoryInput");
@@ -17,9 +15,9 @@ function requestId() {
   return crypto.randomUUID();
 }
 
-function sendNativeMessage(message) {
+function sendNativeRequest(message) {
   return new Promise((resolve, reject) => {
-    chrome.runtime.sendNativeMessage(HOST_NAME, message, (response) => {
+    chrome.runtime.sendMessage({ type: "native_request", message }, (response) => {
       const transportError = chrome.runtime.lastError;
       if (transportError) {
         reject(new Error(transportError.message));
@@ -81,7 +79,7 @@ async function loadPreferences() {
 
 async function loadCategories() {
   try {
-    const result = await sendNativeMessage({
+    const result = await sendNativeRequest({
       type: "list_categories",
       id: requestId(),
     });
@@ -106,7 +104,7 @@ async function saveCurrentPage(event) {
   saveButton.disabled = true;
   setStatus("保存しています…");
   try {
-    const result = await sendNativeMessage({
+    const result = await sendNativeRequest({
       type: "save_url",
       id: requestId(),
       url: activeTab.url,
