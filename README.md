@@ -25,10 +25,20 @@ Python server or fixed port.
 
 The Brave extension uses stable ID `fhijpanhohijhimeiajdgfhcpipbhkkh`. Its popup
 prefills the active tab and accepts category, tags, and a note. The context menu saves
-the current page or selected link with the last-used category and tags. Both routes
-send a length-prefixed native message to `com.suzukimakoto.codex_url_vault`, which
-calls `save_url` on the shared Rust core. The extension never opens SQLite or stdio
-MCP directly.
+the current page or selected link with the last-used category and tags. The extension
+holds one bidirectional `runtime.connectNative` port to
+`com.suzukimakoto.codex_url_vault`; popup and context-menu requests share that port.
+The extension never opens SQLite or stdio MCP directly.
+
+The MCP `save_current_brave_page` tool uses the same connection for deictic requests
+such as “save this URL.” The MCP sends one request through the user-only Unix socket
+at `<vault-home>/.brave-current-page.sock`. The Native Messaging Host asks the
+extension for the active tab in the last-focused, currently foreground Brave window,
+then saves the returned exact URL and title through the shared Rust core. The
+extension requires the `tabs` permission because this route has no Brave action click
+that could grant temporary `activeTab` access. Only stable `http` and `https` tabs are
+accepted; an unfocused Brave window, a changed target tab, or a disconnected bridge
+returns an error without URL inference or fallback capture.
 
 Source locations:
 
@@ -56,6 +66,10 @@ same host manifest in Brave's browser-wide and active-profile
 `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/`, then restart
 Brave. The compatibility manifest lets Brave discover the host; it does not install
 the extension in Chrome.
+
+After an extension source update, reload the unpacked extension at
+`brave://extensions` so its service worker and permission set are current. A newly
+added `tabs` permission may require explicit acceptance in Brave.
 
 ## Build
 

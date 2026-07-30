@@ -1,7 +1,7 @@
 use std::io;
 
 use url_vault_core::Vault;
-use url_vault_native_host::{brave_manifest, serve};
+use url_vault_native_host::{brave_manifest, serve_bridge};
 
 fn main() {
     if let Err(error) = run() {
@@ -27,6 +27,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     let vault = Vault::from_env()?;
     vault.init()?;
-    serve(io::stdin().lock(), io::stdout().lock(), &vault)?;
+    let stdin = std::fs::File::open("/dev/stdin")?;
+    serve_bridge(stdin, io::stdout().lock(), &vault)?;
     Ok(())
 }

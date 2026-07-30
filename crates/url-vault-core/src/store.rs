@@ -13,8 +13,9 @@ use crate::error::{Result, VaultError};
 use crate::html::{hex_sha256, parse_bookmark_html, render_bookmarks_html};
 use crate::model::{
     ApplyImportInput, Bookmark, BookmarkIdentity, Category, ImportResult, InitResult,
-    MutationResult, OpenResult, SaveSnapshotInput, SaveUrlInput, Snapshot, SnapshotMetadata,
-    SnapshotPayload, SnapshotResult, SnapshotVerification, SuggestResult, UpdateUrlInput,
+    MutationResult, OpenResult, SaveOperation, SaveSnapshotInput, SaveUrlInput, SaveUrlResult,
+    Snapshot, SnapshotMetadata, SnapshotPayload, SnapshotResult, SnapshotVerification,
+    SuggestResult, UpdateUrlInput,
 };
 use crate::{schema, search};
 
@@ -202,10 +203,24 @@ impl Vault {
     }
 
     pub fn save_url(&self, input: SaveUrlInput) -> Result<MutationResult<Bookmark>> {
+        let result = self.save_url_with_operation(input)?;
+        Ok(MutationResult {
+            item: result.item,
+            canonical_html: result.canonical_html,
+        })
+    }
+
+    pub fn save_url_with_operation(&self, input: SaveUrlInput) -> Result<SaveUrlResult> {
         if input.url.trim().is_empty() {
             return Err(VaultError::InvalidInput("url is required".to_owned()));
         }
-        self.mutate(|transaction| {
+        let result = self.mutate(|transaction| {
+            let canonical = canonicalize_url(&input.url);
+            let existed = transaction.query_row(
+                "SELECT EXISTS(SELECT 1 FROM bookmarks WHERE canonical_url = ?1)",
+                [&canonical],
+                |row| row.get::<_, i64>(0),
+            )? != 0;
             let bookmark = upsert_bookmark(transaction, &input)?;
             if let Some(folder) = input
                 .folder_path
@@ -214,7 +229,18 @@ impl Vault {
             {
                 upsert_category(transaction, folder, None, None)?;
             }
-            load_bookmark(transaction, &bookmark.id)
+            let bookmark = load_bookmark(transaction, &bookmark.id)?;
+            let operation = if existed {
+                SaveOperation::Updated
+            } else {
+                SaveOperation::Created
+            };
+            Ok((bookmark, operation))
+        })?;
+        Ok(SaveUrlResult {
+            item: result.item.0,
+            canonical_html: result.canonical_html,
+            operation: result.item.1,
         })
     }
 

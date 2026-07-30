@@ -1,6 +1,6 @@
 ---
 name: codex-url-vault
-description: "Operate Codex URL Vault for saved links, bookmark search and capture, the native macOS Vault, the card-based Codex Browser/IAB viewer, Brave current-page capture, imports, categories, URL opening, and preserved-text snapshots. Route Codex requests through the plugin's task-oriented MCP tools."
+description: "Operate Codex URL Vault: save this URL or the current Brave page, find and organize saved links, open the native macOS Vault or Codex Browser/IAB viewer, import bookmarks, and preserve supplied text. Route through task-oriented MCP tools."
 ---
 
 # Codex URL Vault
@@ -14,7 +14,8 @@ requests, applicable `AGENTS.md` files, or more specific local execution contrac
 ## Trigger and primary route
 
 Use this skill when the user asks to save, find, list, inspect, organize, import, open,
-or show URLs in Codex URL Vault; asks to display the Vault inside Codex Browser/IAB;
+or show URLs in Codex URL Vault; says “save this URL,” “save this page,” or otherwise
+refers to the current Brave page; asks to display the Vault inside Codex Browser/IAB;
 or asks for explicitly preserved text associated with a saved URL.
 
 First use the plugin's `codex-url-vault` MCP tools. Do not replace those tools with
@@ -29,9 +30,12 @@ content acquisition. Snapshot preservation stores text supplied by the caller. T
 IAB Reader Preview may fetch a page for temporary display, but it does not preserve
 that content as a snapshot.
 
-Brave popup and context-menu capture are browser-side routes through the bundled
-Native Messaging Host and shared Rust Core. They do not connect to stdio MCP. For the
-same save request made to Codex, continue to use the MCP `save_url` tool.
+For “this URL,” “this page,” or another explicit current-Brave-page reference, call
+`save_current_brave_page`. It obtains the exact URL and title through the bundled
+Brave extension, Native Messaging Host, and local bridge before saving. Do not ask the
+user to copy the URL, infer it from visible text, use AppShot as a URL source, or
+reopen the page in a Brave EXT managed tab. Use `save_url` only when the caller has
+already supplied the URL.
 
 ## Operation routing
 
@@ -42,8 +46,10 @@ same save request made to Codex, continue to use the MCP `save_url` tool.
 - Open a link or the independent app: call `open_url` or `show_vault`.
 - Show the card-based Vault inside Codex: call `show_iab_vault`, then use Codex
   Browser/IAB to open its returned `viewerUrl`.
-- Save or organize: call `save_url`, `update_url`, `move_url`, `archive_url`, or the
-  category tools that directly match the request.
+- Save the current Brave page: call `save_current_brave_page`; pass an explicitly
+  requested category, tags, or note when present.
+- Save an explicit URL or organize existing records: call `save_url`, `update_url`,
+  `move_url`, `archive_url`, or the category tools that directly match the request.
 - Import browser bookmark HTML: call `preview_bookmark_import`, preserve its checksum,
   then call `apply_bookmark_import` with the user's selected import mode. A reset
   requires the user's explicit reset intent.
@@ -65,7 +71,8 @@ mutation.
 ## Stop conditions
 
 Stop the affected action and report the exact error when the MCP server is unavailable,
-the native app is missing, a bookmark target remains ambiguous, an import checksum no
-longer matches its preview, the IAB viewer cannot start, or the core rejects a
-snapshot path or payload. Do not substitute another implementation or modify runtime
-files to bypass the failure.
+the native app is missing, the Brave bridge is disconnected, Brave is not foreground,
+the current tab changes during capture, the current page is not `http` or `https`, a
+bookmark target remains ambiguous, an import checksum no longer matches its preview,
+the IAB viewer cannot start, or the core rejects a snapshot path or payload. Do not
+substitute another implementation or modify runtime files to bypass the failure.

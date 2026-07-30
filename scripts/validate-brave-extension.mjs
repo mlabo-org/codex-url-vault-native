@@ -44,10 +44,10 @@ if (!hostManifest.path?.startsWith("/")) {
 }
 
 const expectedPermissions = new Set([
-  "activeTab",
   "contextMenus",
   "nativeMessaging",
   "storage",
+  "tabs",
 ]);
 for (const permission of manifest.permissions || []) {
   if (!expectedPermissions.delete(permission)) {
@@ -73,11 +73,33 @@ for (const relativePath of new Set(requiredFiles)) {
   }
 }
 
-for (const script of ["popup.js", "service-worker.js"]) {
-  const source = readFileSync(resolve(extensionRoot, script), "utf8");
-  if (!source.includes(hostManifest.name)) {
-    fail(`${script} does not reference ${hostManifest.name}`);
+const serviceWorker = readFileSync(
+  resolve(extensionRoot, "service-worker.js"),
+  "utf8",
+);
+for (const requiredSource of [
+  hostManifest.name,
+  "chrome.runtime.connectNative",
+  "capture_current_page",
+  "current_page_result",
+  "chrome.windows.getLastFocused",
+  "chrome.tabs.get",
+  "capture_target_changed",
+]) {
+  if (!serviceWorker.includes(requiredSource)) {
+    fail(`service-worker.js is missing ${requiredSource}`);
   }
+}
+if (serviceWorker.includes("chrome.runtime.sendNativeMessage")) {
+  fail("service-worker.js must use the persistent native port");
+}
+
+const popup = readFileSync(resolve(extensionRoot, "popup.js"), "utf8");
+if (!popup.includes("chrome.runtime.sendMessage")) {
+  fail("popup.js must route Native Host requests through the service worker");
+}
+if (popup.includes("chrome.runtime.sendNativeMessage")) {
+  fail("popup.js must not launch one-shot Native Host processes");
 }
 
 console.log(`Brave extension validation passed: ${extensionId}`);
