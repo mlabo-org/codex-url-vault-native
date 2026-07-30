@@ -85,7 +85,9 @@ const MESSAGES = {
     languageControl: "言語",
     themeControl: "テーマ",
     openInDefaultBrowser: "既定ブラウザでVaultを開く",
-    promptSamples: "プロンプト例",
+    promptSamples: "Codexへの依頼例",
+    promptSamplesHelp: "Codexには自然な言葉で依頼できます。スキル呼び出し記法やMCPツール名の入力は不要です。各例には、プラグインが内部で選ぶ主なMCPルートを併記しています。",
+    mcpRoute: "主なMCP",
     addUrl: "URLを追加",
     addCategory: "カテゴリを追加",
     importBookmarks: "ブックマークをインポート",
@@ -208,7 +210,9 @@ const MESSAGES = {
     languageControl: "Language",
     themeControl: "Theme",
     openInDefaultBrowser: "Open Vault in default browser",
-    promptSamples: "Prompt examples",
+    promptSamples: "Example requests for Codex",
+    promptSamplesHelp: "Ask Codex in natural language. You do not need to enter a skill invocation or MCP tool name. Each example also shows the main MCP route the plugin selects internally.",
+    mcpRoute: "Primary MCP",
     addUrl: "Add URL",
     addCategory: "Add Category",
     importBookmarks: "Import Bookmarks",
@@ -325,28 +329,44 @@ const MESSAGES = {
 let preferences = readPreferences();
 const PROMPT_SAMPLES = [
   {
-    title: { ja: "Vaultを開く", en: "Open the Vault" },
-    prompt: { ja: "$codex-url-vault を開いて", en: "Use $codex-url-vault to open the local Vault." },
+    title: { ja: "ネイティブアプリを開く", en: "Open the native app" },
+    route: "show_vault",
+    prompt: { ja: "Codex URL Vaultのネイティブアプリを開いて。", en: "Open the native Codex URL Vault app." },
   },
   {
-    title: { ja: "URLを保存", en: "Save a URL" },
-    prompt: { ja: "$codex-url-vault に https://example.com を保存。タイトルは「Example」、エイリアスは example、タグは reference", en: "Use $codex-url-vault to save https://example.com with title Example, alias example, and tag reference." },
+    title: { ja: "Codex内でカード表示する", en: "Show the card view inside Codex" },
+    route: "show_iab_vault → Codex Browser",
+    prompt: { ja: "Codex URL VaultをCodex内のカード表示で開いて。", en: "Open Codex URL Vault as a card view inside Codex." },
   },
   {
-    title: { ja: "保存版を残す", en: "Attach a saved copy" },
-    prompt: { ja: "$codex-url-vault で保存済みURLにローカルのMarkdownスナップショットを追加して", en: "Use $codex-url-vault to attach a local Markdown snapshot to a saved URL." },
+    title: { ja: "詳細を付けてURLを保存する", en: "Save a URL with details" },
+    route: "save_url",
+    prompt: { ja: "Codex URL Vaultに https://example.com を保存して。タイトルは「Example」、カテゴリは「Research/Web」、エイリアスは「example」、タグは「reference」と「sample」、用途は「documentation」にして。", en: "Save https://example.com in Codex URL Vault with the title “Example,” category “Research/Web,” alias “example,” tags “reference” and “sample,” and intent “documentation.”" },
   },
   {
-    title: { ja: "あいまい検索", en: "Search saved content" },
-    prompt: { ja: "$codex-url-vault で「Cloudflare SSL」を検索して候補を3件出して", en: "Use $codex-url-vault to search saved URLs and snapshots for Cloudflare SSL." },
+    title: { ja: "保存済みURLを検索する", en: "Search saved URLs" },
+    route: "search_urls",
+    prompt: { ja: "Codex URL Vaultで「Cloudflare SSL」を検索して、関連度の高い候補を3件、タイトル・URL・カテゴリ付きで見せて。まだ開かないで。", en: "Search Codex URL Vault for “Cloudflare SSL” and show the three most relevant candidates with title, URL, and category. Do not open anything yet." },
   },
   {
-    title: { ja: "ブックマークを取り込む", en: "Import bookmarks" },
-    prompt: { ja: "$codex-url-vault に ~/Downloads/bookmarks.html を Brave のブックマークとして取り込んで", en: "Use $codex-url-vault to import ~/Downloads/bookmarks.html from Brave." },
+    title: { ja: "あいまいに探してから開く", en: "Resolve a vague request, then open" },
+    route: "suggest_urls → open_url",
+    prompt: { ja: "Codex URL Vaultで「CloudflareのSSL設定」を探して。候補が複数ある場合は一覧を出し、私が選んだURLだけをBraveで開いて。", en: "Find my saved link about Cloudflare SSL configuration in Codex URL Vault. If there are multiple candidates, show them first and open only the one I select in Brave." },
   },
   {
-    title: { ja: "整理する", en: "Organize the Vault" },
-    prompt: { ja: "$codex-url-vault で保存URLを一覧して、エイリアス、タグ、カテゴリを整理して", en: "Use $codex-url-vault to list saved URLs and organize aliases, tags, and categories." },
+    title: { ja: "貼り付けた本文を保存版として残す", en: "Preserve supplied text" },
+    route: "save_snapshot",
+    prompt: { ja: "Codex URL Vaultに保存済みの https://example.com へ、次のMarkdown本文を保存版として記録して。Webページは取得せず、この本文をそのまま保存して。\n\n# Example\n確認済みの要点です。", en: "For https://example.com in Codex URL Vault, preserve the following Markdown as its saved copy. Do not fetch the web page; save this text verbatim.\n\n# Example\nThese are the verified notes." },
+  },
+  {
+    title: { ja: "ブックマークを確認してから取り込む", en: "Preview bookmarks before importing" },
+    route: "preview_bookmark_import → apply_bookmark_import",
+    prompt: { ja: "~/Downloads/bookmarks.html をCodex URL Vaultへ取り込む前にプレビューして、追加・重複・エラー件数を見せて。まだ実行せず、私が取り込みモードを選んだ後に取り込んで。", en: "Preview ~/Downloads/bookmarks.html before importing it into Codex URL Vault. Show the added, duplicate, and error counts, but do not apply it until I choose the import mode." },
+  },
+  {
+    title: { ja: "既存URLを整理する", en: "Organize an existing URL" },
+    route: "get_url → update_url / move_url",
+    prompt: { ja: "Codex URL Vaultでエイリアス「example」の保存内容を確認してから、「Research/Web」カテゴリへ移動し、既存タグを残したまま「sample」を追加して。完了後に更新結果を見せて。", en: "In Codex URL Vault, inspect the saved URL with alias “example,” move it to “Research/Web,” and add the tag “sample” without removing its existing tags. Show the updated result." },
   },
 ];
 const EXPORT_INSTRUCTIONS = {
@@ -569,7 +589,10 @@ function renderPromptSamples() {
     const row = document.createElement("section");
     row.className = "prompt-sample";
     row.innerHTML = `
-      <h3>${escapeHtml(title)}</h3>
+      <div class="prompt-sample-heading">
+        <h3>${escapeHtml(title)}</h3>
+        <code class="mcp-route">${escapeHtml(t("mcpRoute"))}: ${escapeHtml(sample.route)}</code>
+      </div>
       <pre class="prompt-text">${escapeHtml(prompt)}</pre>
       <footer>
         <button class="action-button" type="button" data-copy-prompt="${escapeAttr(prompt)}">${escapeHtml(t("copy"))}</button>
