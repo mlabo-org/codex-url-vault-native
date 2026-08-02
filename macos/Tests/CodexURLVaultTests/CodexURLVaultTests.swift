@@ -1,5 +1,6 @@
 import Testing
 @testable import CodexURLVault
+import Darwin
 import Foundation
 
 @Test
@@ -48,4 +49,34 @@ func rustSnakeCasePayloadDecodesAcronymFields() throws {
 
     let bookmark = try decoder.decode(VaultBookmark.self, from: data)
     #expect(bookmark.canonicalUrl == "https://example.test/")
+}
+
+@Test
+func canonicalHTMLReplacementEmitsOneDebouncedVaultChange() throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let canonicalHTML = directory.appendingPathComponent("current-bookmarks.html")
+    try Data("initial".utf8).write(to: canonicalHTML)
+
+    let callback = DispatchSemaphore(value: 0)
+    let monitor = VaultDataChangeMonitor(
+        canonicalHTMLURL: canonicalHTML,
+        debounceInterval: .milliseconds(50)
+    ) {
+        callback.signal()
+    }
+    try monitor.start()
+    defer { monitor.stop() }
+
+    try Data("unrelated".utf8).write(to: directory.appendingPathComponent("vault.sqlite"))
+    #expect(callback.wait(timeout: .now() + .milliseconds(150)) == .timedOut)
+
+    let stagedHTML = directory.appendingPathComponent(".current-bookmarks.html.tmp")
+    try Data("updated".utf8).write(to: stagedHTML)
+    #expect(rename(stagedHTML.path, canonicalHTML.path) == 0)
+    #expect(callback.wait(timeout: .now() + .seconds(2)) == .success)
+    #expect(callback.wait(timeout: .now() + .milliseconds(150)) == .timedOut)
 }

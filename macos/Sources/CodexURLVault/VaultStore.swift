@@ -17,10 +17,23 @@ final class VaultStore: ObservableObject {
     @Published var errorMessage: String?
     @Published var activityMessage: String?
 
+    private var dataChangeMonitor: VaultDataChangeMonitor?
+
     func start() {
+        guard dataChangeMonitor == nil else { return }
         do {
-            _ = try RustVaultBridge.initialize()
+            let initialization = try RustVaultBridge.initialize()
             try reload()
+            let canonicalHTMLURL = URL(fileURLWithPath: initialization.db)
+                .deletingLastPathComponent()
+                .appendingPathComponent("current-bookmarks.html")
+            let monitor = VaultDataChangeMonitor(canonicalHTMLURL: canonicalHTMLURL) { [weak self] in
+                Task { @MainActor [weak self] in
+                    self?.reloadAfterExternalChange()
+                }
+            }
+            try monitor.start()
+            dataChangeMonitor = monitor
         } catch {
             fail(error)
         }
@@ -30,9 +43,18 @@ final class VaultStore: ObservableObject {
         categories = try RustVaultBridge.listCategories()
         let allBookmarks = try RustVaultBridge.listURLs(category: nil)
         totalCount = allBookmarks.count
-        bookmarks = selectedCategory == nil
-            ? allBookmarks
-            : try RustVaultBridge.listURLs(category: selectedCategory)
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if query.isEmpty {
+            bookmarks = selectedCategory == nil
+                ? allBookmarks
+                : allBookmarks.filter { ($0.folderPath ?? "") == selectedCategory }
+        } else {
+            let matches = try RustVaultBridge.searchURLs(query: query, limit: 10_000)
+            bookmarks = selectedCategory == nil
+                ? matches
+                : matches.filter { ($0.folderPath ?? "") == selectedCategory }
+        }
+        dataChangeMonitor?.acknowledgeCurrentState()
     }
 
     func selectCategory(_ category: String?) {
@@ -277,6 +299,14 @@ final class VaultStore: ObservableObject {
 
     private func fail(_ error: Error) {
         errorMessage = error.localizedDescription
+    }
+
+    private func reloadAfterExternalChange() {
+        do {
+            try reload()
+        } catch {
+            fail(error)
+        }
     }
 }
 
