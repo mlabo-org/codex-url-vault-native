@@ -1219,14 +1219,16 @@ private struct PromptSamplesView: View {
                                     .appFont(.headline, weight: .semibold)
                                 Spacer()
                                 Text("\(strings.mcpRoute): \(sample.route)")
-                                    .font(.system(.caption, design: .monospaced))
+                                    .appFont(.caption)
+                                    .monospaced()
                                     .foregroundStyle(.secondary)
                                     .textSelection(.enabled)
                             }
 
                             HStack(alignment: .top, spacing: 12) {
                                 Text(sample.prompt)
-                                    .font(.system(.body, design: .monospaced))
+                                    .appFont(.body)
+                                    .monospaced()
                                     .textSelection(.enabled)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                 Button(strings.copy) {
