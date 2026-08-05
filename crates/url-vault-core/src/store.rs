@@ -20,7 +20,7 @@ use crate::model::{
 use crate::{schema, search};
 
 const DEFAULT_HOME: &str = "~/.codex/url-vault";
-const DEFAULT_APP_PATH: &str = "/Users/suzukimakoto/Applications/Codex URL Vault.app";
+const DEFAULT_APP_PATH: &str = "~/Applications/Codex URL Vault.app";
 const BOOKMARK_SELECT: &str = r#"
     SELECT b.*,
            s.bookmark_id AS snapshot_bookmark_id,
@@ -815,7 +815,7 @@ impl Vault {
         let app = app_path
             .map(Path::to_path_buf)
             .or_else(|| std::env::var_os("CODEX_URL_VAULT_APP_PATH").map(PathBuf::from))
-            .unwrap_or_else(|| PathBuf::from(DEFAULT_APP_PATH));
+            .unwrap_or_else(|| expand_home(DEFAULT_APP_PATH));
         if !app.exists() {
             return Err(VaultError::NotFound(format!(
                 "native app not found at {}",
@@ -1788,10 +1788,27 @@ fn replace_staged(staged: &Path, destination: &Path) -> Result<()> {
 }
 
 fn expand_home(value: &str) -> PathBuf {
+    expand_home_from(value, std::env::var_os("HOME").map(PathBuf::from))
+}
+
+fn expand_home_from(value: &str, home: Option<PathBuf>) -> PathBuf {
     if let Some(rest) = value.strip_prefix("~/")
-        && let Some(home) = std::env::var_os("HOME")
+        && let Some(home) = home
     {
-        return PathBuf::from(home).join(rest);
+        return home.join(rest);
     }
     PathBuf::from(value)
+}
+
+#[cfg(test)]
+mod path_tests {
+    use super::*;
+
+    #[test]
+    fn default_app_path_is_resolved_from_the_current_home() {
+        assert_eq!(
+            expand_home_from(DEFAULT_APP_PATH, Some(PathBuf::from("/Users/example"))),
+            PathBuf::from("/Users/example/Applications/Codex URL Vault.app")
+        );
+    }
 }

@@ -1,11 +1,11 @@
 {
   "mcpServers": {
     "codex-url-vault": {
-      "command": "/Users/suzukimakoto/Applications/Codex URL Vault.app/Contents/Resources/url-vault-mcp",
-      "args": [],
-      "env": {
-        "CODEX_URL_VAULT_APP_PATH": "/Users/suzukimakoto/Applications/Codex URL Vault.app"
-      }
+      "command": "/bin/sh",
+      "args": [
+        "./bin/url-vault-mcp-launcher"
+      ],
+      "cwd": "."
     }
   }
 }
