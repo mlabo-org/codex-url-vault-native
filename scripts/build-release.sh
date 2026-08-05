@@ -47,8 +47,10 @@ cp "$repo_root/target/release/url-vault" \
   "$contents/Resources/url-vault"
 cp "$repo_root/target/release/url-vault-native-host" \
   "$contents/Resources/url-vault-native-host"
-cp "$repo_root/extension/native-host/com.suzukimakoto.codex_url_vault.json" \
-  "$contents/Resources/brave-native-host-manifest.json"
+"$repo_root/target/release/url-vault-native-host" \
+  --print-brave-manifest \
+  "$HOME/Applications/Codex URL Vault.app/Contents/Resources/url-vault-native-host" \
+  > "$contents/Resources/brave-native-host-manifest.json"
 cp -R "$repo_root/extension/brave" \
   "$contents/Resources/brave-extension"
 cp "$repo_root/macos/Info.plist" "$contents/Info.plist"

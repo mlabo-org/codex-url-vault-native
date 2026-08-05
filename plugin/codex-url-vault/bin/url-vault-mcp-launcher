@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+
+: "${HOME:?HOME is required to locate Codex URL Vault.app}"
+
+app_path=${CODEX_URL_VAULT_APP_PATH:-"$HOME/Applications/Codex URL Vault.app"}
+mcp_path="$app_path/Contents/Resources/url-vault-mcp"
+
+if [ ! -x "$mcp_path" ]; then
+  printf '%s\n' "Codex URL Vault MCP binary not found at $mcp_path" >&2
+  exit 1
+fi
+
+export CODEX_URL_VAULT_APP_PATH="$app_path"
+exec "$mcp_path"
