@@ -4,6 +4,7 @@ use std::io::{self, Read, Write};
 use std::os::unix::fs::{FileTypeExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, mpsc};
 use std::thread;
@@ -16,11 +17,58 @@ use url_vault_core::{SaveUrlInput, Vault, VaultError};
 
 pub const HOST_NAME: &str = "com.suzukimakoto.codex_url_vault";
 pub const EXTENSION_ID: &str = "fhijpanhohijhimeiajdgfhcpipbhkkh";
-pub const BRIDGE_SOCKET_NAME: &str = ".brave-current-page.sock";
+pub const BRIDGE_SOCKET_NAME: &str = ".browser-current-page.sock";
+pub const MANIFEST_FILE_NAME: &str = "com.suzukimakoto.codex_url_vault.json";
 const MAX_MESSAGE_BYTES: usize = 1024 * 1024;
 const BRIDGE_IO_TIMEOUT: Duration = Duration::from_secs(8);
 const LISTENER_POLL_INTERVAL: Duration = Duration::from_millis(20);
 static REQUEST_SEQUENCE: AtomicU64 = AtomicU64::new(1);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Browser {
+    Brave,
+    Chrome,
+}
+
+impl Browser {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Brave => "brave",
+            Self::Chrome => "chrome",
+        }
+    }
+
+    pub const fn display_name(self) -> &'static str {
+        match self {
+            Self::Brave => "Brave",
+            Self::Chrome => "Google Chrome",
+        }
+    }
+
+    pub fn native_messaging_directory(self, home: &Path) -> PathBuf {
+        match self {
+            Self::Brave => home.join(
+                "Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts",
+            ),
+            Self::Chrome => {
+                home.join("Library/Application Support/Google/Chrome/NativeMessagingHosts")
+            }
+        }
+    }
+}
+
+impl FromStr for Browser {
+    type Err = HostError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "brave" => Ok(Self::Brave),
+            "chrome" => Ok(Self::Chrome),
+            _ => Err(HostError::UnsupportedBrowser(value.to_owned())),
+        }
+    }
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum HostError {
@@ -34,13 +82,15 @@ pub enum HostError {
     MessageTooLarge,
     #[error("native host only accepts http and https URLs")]
     UnsupportedUrl,
-    #[error("Brave capture bridge is already running")]
+    #[error("unsupported browser: {0}; expected brave or chrome")]
+    UnsupportedBrowser(String),
+    #[error("browser capture bridge is already running")]
     BridgeAlreadyRunning,
-    #[error("Brave capture bridge is unavailable: {0}")]
+    #[error("browser capture bridge is unavailable: {0}")]
     BridgeUnavailable(String),
-    #[error("Brave capture bridge protocol error: {0}")]
+    #[error("browser capture bridge protocol error: {0}")]
     BridgeProtocol(String),
-    #[error("Brave current-page capture failed ({code}): {message}")]
+    #[error("browser current-page capture failed ({code}): {message}")]
     Capture { code: String, message: String },
 }
 
@@ -64,9 +114,11 @@ pub enum NativeRequest {
         tags: Vec<String>,
         #[serde(default)]
         note: String,
+        source_browser: Browser,
     },
     CurrentPageResult {
         id: String,
+        browser: Browser,
         ok: bool,
         #[serde(default)]
         url: String,
@@ -130,7 +182,8 @@ impl NativeResponse {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct SaveCurrentBravePageInput {
+pub struct SaveCurrentBrowserPageInput {
+    pub browser: Option<Browser>,
     pub folder_path: Option<String>,
     #[serde(default)]
     pub tags: Vec<String>,
@@ -140,8 +193,9 @@ pub struct SaveCurrentBravePageInput {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum BridgeRequest {
-    SaveCurrentBravePage {
+    SaveCurrentBrowserPage {
         id: String,
+        browser: Option<Browser>,
         folder_path: Option<String>,
         #[serde(default)]
         tags: Vec<String>,
@@ -151,7 +205,7 @@ enum BridgeRequest {
 
 struct PendingCapture {
     stream: UnixStream,
-    input: SaveCurrentBravePageInput,
+    input: SaveCurrentBrowserPageInput,
 }
 
 enum BridgeEvent {
@@ -221,6 +275,7 @@ pub fn serve_bridge<R: Read + Send + 'static, W: Write>(
                 match request {
                     NativeRequest::CurrentPageResult {
                         id,
+                        browser,
                         ok,
                         url,
                         title,
@@ -234,6 +289,7 @@ pub fn serve_bridge<R: Read + Send + 'static, W: Write>(
                             &mut pending,
                             CurrentPageCapture {
                                 id,
+                                browser,
                                 ok,
                                 url,
                                 title,
@@ -267,7 +323,7 @@ pub fn serve_bridge<R: Read + Send + 'static, W: Write>(
     let disconnected = NativeResponse::failure(
         None,
         "bridge_disconnected",
-        "Brave extension disconnected before capture completed",
+        "browser extension disconnected before capture completed",
     );
     for (_, mut capture) in pending {
         let _ = write_frame(&mut capture.stream, &disconnected);
@@ -275,9 +331,9 @@ pub fn serve_bridge<R: Read + Send + 'static, W: Write>(
     result
 }
 
-pub fn request_save_current_brave_page(
+pub fn request_save_current_browser_page(
     vault: &Vault,
-    input: SaveCurrentBravePageInput,
+    input: SaveCurrentBrowserPageInput,
 ) -> Result<Value, HostError> {
     let socket_path = bridge_socket_path(vault);
     let mut stream = UnixStream::connect(&socket_path).map_err(|error| {
@@ -290,8 +346,9 @@ pub fn request_save_current_brave_page(
         std::process::id(),
         REQUEST_SEQUENCE.fetch_add(1, Ordering::Relaxed)
     );
-    let request = BridgeRequest::SaveCurrentBravePage {
+    let request = BridgeRequest::SaveCurrentBrowserPage {
         id,
+        browser: input.browser,
         folder_path: input.folder_path,
         tags: input.tags,
         note: input.note,
@@ -308,7 +365,7 @@ pub fn request_save_current_brave_page(
     }
     let error = response.error.unwrap_or(NativeError {
         code: "capture_failed".to_owned(),
-        message: "Brave current-page capture failed".to_owned(),
+        message: "browser current-page capture failed".to_owned(),
     });
     Err(HostError::Capture {
         code: error.code,
@@ -338,8 +395,9 @@ pub fn handle_request(vault: &Vault, request: NativeRequest) -> NativeResponse {
             category,
             tags,
             note,
+            source_browser,
             ..
-        } => save_url(vault, &url, &title, &category, tags, &note),
+        } => save_url(vault, &url, &title, &category, tags, &note, source_browser),
         NativeRequest::CurrentPageResult { .. } => Err(HostError::BridgeProtocol(
             "capture results require the persistent bridge".to_owned(),
         )),
@@ -352,6 +410,7 @@ pub fn handle_request(vault: &Vault, request: NativeRequest) -> NativeResponse {
 
 struct CurrentPageCapture {
     id: String,
+    browser: Browser,
     ok: bool,
     url: String,
     title: String,
@@ -372,6 +431,24 @@ fn handle_current_page_result(
             capture.id
         )));
     };
+    if request
+        .input
+        .browser
+        .is_some_and(|browser| browser != capture.browser)
+    {
+        let expected = request.input.browser.expect("checked browser");
+        let response = NativeResponse::failure(
+            Some(capture.id),
+            "browser_mismatch",
+            format!(
+                "requested {} but the connected extension is {}",
+                expected.display_name(),
+                capture.browser.display_name()
+            ),
+        );
+        write_frame(&mut request.stream, &response)?;
+        return Ok(());
+    }
     let response = if capture.ok {
         let tab_id = capture.tab_id.ok_or_else(|| {
             HostError::BridgeProtocol("capture result is missing tab_id".to_owned())
@@ -386,6 +463,7 @@ fn handle_current_page_result(
             request.input.folder_path.as_deref().unwrap_or_default(),
             request.input.tags,
             request.input.note.as_deref().unwrap_or_default(),
+            capture.browser,
         )?;
         let result_object = result.as_object_mut().ok_or_else(|| {
             HostError::BridgeProtocol("save result is not a JSON object".to_owned())
@@ -393,7 +471,7 @@ fn handle_current_page_result(
         result_object.insert(
             "capture".to_owned(),
             json!({
-                "browser": "brave",
+                "browser": capture.browser,
                 "tab_id": tab_id,
                 "window_id": window_id,
                 "captured_at": capture.captured_at,
@@ -403,7 +481,7 @@ fn handle_current_page_result(
     } else {
         let error = capture.error.unwrap_or(NativeError {
             code: "capture_failed".to_owned(),
-            message: "Brave current-page capture failed".to_owned(),
+            message: "browser current-page capture failed".to_owned(),
         });
         NativeResponse::failure(Some(capture.id), &error.code, error.message)
     };
@@ -429,8 +507,9 @@ fn handle_local_request(
         }
     };
     match request {
-        BridgeRequest::SaveCurrentBravePage {
+        BridgeRequest::SaveCurrentBrowserPage {
             id,
+            browser,
             folder_path,
             tags,
             note,
@@ -447,12 +526,14 @@ fn handle_local_request(
             let capture_command = json!({
                 "type": "capture_current_page",
                 "id": id,
+                "browser": browser,
             });
             pending.insert(
                 id.clone(),
                 PendingCapture {
                     stream: stream.try_clone()?,
-                    input: SaveCurrentBravePageInput {
+                    input: SaveCurrentBrowserPageInput {
+                        browser,
                         folder_path,
                         tags: normalize_list(tags),
                         note,
@@ -464,7 +545,7 @@ fn handle_local_request(
                 let response = NativeResponse::failure(
                     Some(id),
                     "bridge_disconnected",
-                    "Brave extension is not connected",
+                    "browser extension is not connected",
                 );
                 let _ = write_frame(stream, &response);
                 return Err(error);
@@ -565,6 +646,7 @@ fn save_url(
     category: &str,
     tags: Vec<String>,
     note: &str,
+    source_browser: Browser,
 ) -> Result<Value, HostError> {
     let parsed = Url::parse(url).map_err(|_| HostError::UnsupportedUrl)?;
     if !matches!(parsed.scheme(), "http" | "https") {
@@ -576,7 +658,7 @@ fn save_url(
         note: optional_text(note),
         tags: normalize_list(tags),
         source_type: Some("browser_extension".to_owned()),
-        source_browser: Some("brave".to_owned()),
+        source_browser: Some(source_browser.as_str().to_owned()),
         folder_path: optional_text(category),
         status: Some("active".to_owned()),
         ..SaveUrlInput::default()
@@ -611,6 +693,7 @@ fn normalize_list(values: Vec<String>) -> Vec<String> {
 fn error_code(error: &HostError) -> &'static str {
     match error {
         HostError::UnsupportedUrl => "unsupported_url",
+        HostError::UnsupportedBrowser(_) => "unsupported_browser",
         HostError::Vault(VaultError::NotFound(_)) => "not_found",
         HostError::Vault(VaultError::Ambiguous(_)) => "ambiguous",
         HostError::Vault(VaultError::InvalidInput(_)) => "invalid_input",
@@ -650,14 +733,48 @@ fn write_frame(writer: &mut impl Write, value: &impl Serialize) -> Result<(), Ho
     Ok(())
 }
 
-pub fn brave_manifest(host_path: &str) -> Value {
-    json!({
+pub fn browser_manifest(browser: Browser, host_path: &Path) -> Result<Value, HostError> {
+    if !host_path.is_absolute() {
+        return Err(HostError::BridgeUnavailable(
+            "native host path must be absolute".to_owned(),
+        ));
+    }
+    Ok(json!({
         "name": HOST_NAME,
-        "description": "Codex URL Vault Brave capture host",
-        "path": host_path,
+        "description": format!("Codex URL Vault {} capture host", browser.display_name()),
+        "path": host_path.to_string_lossy(),
         "type": "stdio",
         "allowed_origins": [format!("chrome-extension://{EXTENSION_ID}/")],
-    })
+    }))
+}
+
+pub fn install_browser_manifest(
+    browser: Browser,
+    host_path: &Path,
+    home: &Path,
+) -> Result<PathBuf, HostError> {
+    let manifest = browser_manifest(browser, host_path)?;
+    let directory = browser.native_messaging_directory(home);
+    fs::create_dir_all(&directory)?;
+    let destination = directory.join(MANIFEST_FILE_NAME);
+    let temporary = directory.join(format!(".{MANIFEST_FILE_NAME}.tmp-{}", std::process::id()));
+    let mut bytes = serde_json::to_vec_pretty(&manifest)?;
+    bytes.push(b'\n');
+    fs::write(&temporary, bytes)?;
+    fs::set_permissions(&temporary, fs::Permissions::from_mode(0o644))?;
+    fs::rename(&temporary, &destination)?;
+    for other_browser in [Browser::Brave, Browser::Chrome] {
+        if other_browser == browser {
+            continue;
+        }
+        let other_manifest = other_browser
+            .native_messaging_directory(home)
+            .join(MANIFEST_FILE_NAME);
+        if other_manifest.exists() {
+            fs::remove_file(other_manifest)?;
+        }
+    }
+    Ok(destination)
 }
 
 #[cfg(test)]
@@ -691,6 +808,7 @@ mod tests {
             category: "Browser/Inbox".to_owned(),
             tags: vec!["brave".to_owned(), "capture".to_owned()],
             note: "Saved by test".to_owned(),
+            source_browser: Browser::Brave,
         };
         let created = handle_request(&vault, request());
         let updated = handle_request(&vault, request());
@@ -730,9 +848,10 @@ mod tests {
                     &json!({
                         "type": "current_page_result",
                         "id": command["id"],
+                        "browser": "chrome",
                         "ok": true,
                         "url": "https://example.test/current",
-                        "title": "Current Brave page",
+                        "title": "Current Chrome page",
                         "tab_id": 17,
                         "window_id": 4,
                         "captured_at": "2026-07-31T00:00:00.000Z"
@@ -743,26 +862,75 @@ mod tests {
         });
         wait_for_socket(&bridge_socket_path(&client_vault));
 
-        let input = SaveCurrentBravePageInput {
+        let input = SaveCurrentBrowserPageInput {
+            browser: Some(Browser::Chrome),
             folder_path: Some("Browser/Voice".to_owned()),
             tags: vec!["voice".to_owned()],
             note: None,
         };
-        let created = request_save_current_brave_page(&client_vault, input.clone())
+        let created = request_save_current_browser_page(&client_vault, input.clone())
             .expect("create current page");
         let updated =
-            request_save_current_brave_page(&client_vault, input).expect("update current page");
+            request_save_current_browser_page(&client_vault, input).expect("update current page");
         assert_eq!(created["operation"], "created");
         assert_eq!(updated["operation"], "updated");
-        assert_eq!(created["bookmark"]["title"], "Current Brave page");
+        assert_eq!(created["bookmark"]["title"], "Current Chrome page");
         assert_eq!(created["bookmark"]["folder_path"], "Browser/Voice");
         assert_eq!(created["capture"]["tab_id"], 17);
+        assert_eq!(created["capture"]["browser"], "chrome");
 
         extension.join().expect("extension thread");
         host.join()
             .expect("host thread")
             .expect("persistent bridge");
         assert!(!bridge_socket_path(&client_vault).exists());
+    }
+
+    #[test]
+    fn browser_selection_rejects_a_different_connected_extension() {
+        let home = tempfile::tempdir().expect("temporary Vault");
+        let vault = Vault::at(home.path()).expect("Vault");
+        vault.init().expect("initialize Vault");
+        let (host_stream, mut client_stream) = UnixStream::pair().expect("bridge pair");
+        let mut pending = HashMap::from([(
+            "capture-one".to_owned(),
+            PendingCapture {
+                stream: host_stream,
+                input: SaveCurrentBrowserPageInput {
+                    browser: Some(Browser::Brave),
+                    ..SaveCurrentBrowserPageInput::default()
+                },
+            },
+        )]);
+
+        handle_current_page_result(
+            &vault,
+            &mut pending,
+            CurrentPageCapture {
+                id: "capture-one".to_owned(),
+                browser: Browser::Chrome,
+                ok: true,
+                url: "https://example.test/current".to_owned(),
+                title: "Current page".to_owned(),
+                tab_id: Some(17),
+                window_id: Some(4),
+                captured_at: None,
+                error: None,
+            },
+        )
+        .expect("handle browser mismatch");
+
+        let payload = read_frame(&mut client_stream)
+            .expect("read mismatch response")
+            .expect("mismatch response");
+        let response: NativeResponse =
+            serde_json::from_slice(&payload).expect("mismatch response JSON");
+        assert!(!response.ok);
+        assert_eq!(
+            response.error.as_ref().map(|error| error.code.as_str()),
+            Some("browser_mismatch")
+        );
+        assert!(pending.is_empty());
     }
 
     #[test]
@@ -779,6 +947,7 @@ mod tests {
                 category: String::new(),
                 tags: Vec::new(),
                 note: String::new(),
+                source_browser: Browser::Brave,
             },
         );
         assert!(!response.ok);
@@ -789,13 +958,46 @@ mod tests {
     }
 
     #[test]
-    fn generated_manifest_is_bound_to_the_extension() {
-        let manifest = brave_manifest("/Applications/Codex URL Vault.app/host");
-        assert_eq!(manifest["name"], HOST_NAME);
+    fn generated_manifests_are_bound_to_each_browser_and_the_extension() {
+        let host_path = Path::new("/Applications/Codex URL Vault.app/host");
+        for browser in [Browser::Brave, Browser::Chrome] {
+            let manifest = browser_manifest(browser, host_path).expect("browser manifest");
+            assert_eq!(manifest["name"], HOST_NAME);
+            assert_eq!(manifest["path"], host_path.to_string_lossy().as_ref());
+            assert!(
+                manifest["description"]
+                    .as_str()
+                    .expect("description")
+                    .contains(browser.display_name())
+            );
+            assert_eq!(
+                manifest["allowed_origins"][0],
+                format!("chrome-extension://{EXTENSION_ID}/")
+            );
+        }
+    }
+
+    #[test]
+    fn installs_only_the_selected_browser_manifest() {
+        let home = tempfile::tempdir().expect("temporary home");
+        let host_path = Path::new("/Applications/Codex URL Vault.app/host");
+        let brave_manifest_path = Browser::Brave
+            .native_messaging_directory(home.path())
+            .join(MANIFEST_FILE_NAME);
+        fs::create_dir_all(brave_manifest_path.parent().expect("Brave manifest parent"))
+            .expect("create previous Brave registration directory");
+        fs::write(&brave_manifest_path, b"previous registration")
+            .expect("write previous Brave registration");
+        let installed = install_browser_manifest(Browser::Chrome, host_path, home.path())
+            .expect("install Chrome manifest");
         assert_eq!(
-            manifest["allowed_origins"][0],
-            format!("chrome-extension://{EXTENSION_ID}/")
+            installed,
+            Browser::Chrome
+                .native_messaging_directory(home.path())
+                .join(MANIFEST_FILE_NAME)
         );
+        assert!(installed.exists());
+        assert!(!brave_manifest_path.exists());
     }
 
     fn wait_for_socket(path: &Path) {

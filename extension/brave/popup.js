@@ -1,3 +1,4 @@
+const BROWSER = globalThis.URL_VAULT_BROWSER;
 const pageTitle = document.querySelector("#pageTitle");
 const pageUrl = document.querySelector("#pageUrl");
 const categoryInput = document.querySelector("#categoryInput");
@@ -8,6 +9,12 @@ const saveForm = document.querySelector("#saveForm");
 const saveButton = document.querySelector("#saveButton");
 const status = document.querySelector("#status");
 const connectionBadge = document.querySelector("#connectionBadge");
+const extensionIdHint = document.querySelector("#extensionIdHint");
+
+if (!BROWSER?.id || !BROWSER?.displayName) {
+  throw new Error("browser-config.js is invalid");
+}
+extensionIdHint.textContent = BROWSER.displayName;
 
 let activeTab = null;
 
@@ -112,6 +119,7 @@ async function saveCurrentPage(event) {
       category: categoryInput.value.trim(),
       tags: parseTags(tagsInput.value),
       note: noteInput.value.trim(),
+      source_browser: BROWSER.id,
     });
     await chrome.storage.local.set({
       lastCategory: categoryInput.value.trim(),

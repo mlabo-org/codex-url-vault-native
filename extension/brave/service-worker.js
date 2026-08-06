@@ -1,7 +1,14 @@
+importScripts("browser-config.js");
+
 const HOST_NAME = "com.suzukimakoto.codex_url_vault";
 const MENU_ID = "save-to-codex-url-vault";
 const NATIVE_TIMEOUT_MS = 8000;
 const MAX_RECONNECT_DELAY_MS = 30000;
+const BROWSER = globalThis.URL_VAULT_BROWSER;
+
+if (!BROWSER?.id || !BROWSER?.displayName) {
+  throw new Error("browser-config.js is invalid");
+}
 
 let nativePort = null;
 let reconnectTimer = null;
@@ -87,7 +94,7 @@ function nativeRequest(message) {
 
 async function handleNativeMessage(message, port) {
   if (message?.type === "capture_current_page") {
-    await returnCurrentPage(message.id, port);
+    await returnCurrentPage(message.id, port, message.browser);
     return;
   }
   const pending = pendingNativeRequests.get(message?.id);
@@ -103,12 +110,19 @@ async function handleNativeMessage(message, port) {
   pending.resolve(message.result || {});
 }
 
-async function returnCurrentPage(id, port) {
+async function returnCurrentPage(id, port, requestedBrowser) {
   try {
+    if (requestedBrowser && requestedBrowser !== BROWSER.id) {
+      throw new CaptureError(
+        "browser_mismatch",
+        `${BROWSER.displayName} extension cannot satisfy a ${requestedBrowser} capture request.`,
+      );
+    }
     const page = await captureStableCurrentPage();
     port.postMessage({
       type: "current_page_result",
       id,
+      browser: BROWSER.id,
       ok: true,
       url: page.url,
       title: page.title,
@@ -120,10 +134,11 @@ async function returnCurrentPage(id, port) {
     port.postMessage({
       type: "current_page_result",
       id,
+      browser: BROWSER.id,
       ok: false,
       error: {
         code: error.code || "capture_failed",
-        message: error.message || "現在のBraveページを取得できません。",
+        message: error.message || `現在の${BROWSER.displayName}ページを取得できません。`,
       },
     });
   }
@@ -135,8 +150,8 @@ async function captureStableCurrentPage() {
   });
   if (!focusedWindow?.id || !focusedWindow.focused) {
     throw new CaptureError(
-      "brave_not_focused",
-      "Braveの通常ウィンドウが前面にありません。",
+      "browser_not_focused",
+      `${BROWSER.displayName}の通常ウィンドウが前面にありません。`,
     );
   }
   const [tab] = await chrome.tabs.query({
@@ -164,7 +179,7 @@ async function captureStableCurrentPage() {
   ) {
     throw new CaptureError(
       "capture_target_changed",
-      "取得中にBraveの対象タブが変わりました。",
+      `取得中に${BROWSER.displayName}の対象タブが変わりました。`,
     );
   }
   return {
@@ -227,6 +242,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       category: preferences.lastCategory || "",
       tags: [...new Set(tags)],
       note: "",
+      source_browser: BROWSER.id,
     });
     await showBadge(tab.id, "✓", "#16835f");
   } catch {
