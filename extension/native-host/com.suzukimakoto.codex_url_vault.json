@@ -1,6 +1,6 @@
 {
   "name": "com.suzukimakoto.codex_url_vault",
-  "description": "Codex URL Vault Brave capture host",
+  "description": "Codex URL Vault browser capture host",
   "path": "/absolute/path/to/url-vault-native-host",
   "type": "stdio",
   "allowed_origins": [

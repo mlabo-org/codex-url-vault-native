@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Codex URL Vault for Brave",
+  "name": "Codex URL Vault for Chrome",
   "version": "0.1.0",
-  "description": "Save the current Brave page to the shared local Codex URL Vault.",
+  "description": "Save the current Chrome page to the shared local Codex URL Vault.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApvb9Qm5kIo3fi68epz7Ze+59y+L39EhMhLWT3aZmsJbBYN9/BlJOXv/37IWiFhvTjVAB/SDh8kIWsNB2HRcmxmFPeuDHY8cgbOB24LBkaqeI11lPfZDzZzEGC6oC6dnVqVWe+qCly1/UaxHSVAJKxxyF60V5M7LdRkrzWZeGW8PRKgXxSAiYyhGy6fzXzdPEtXK3WuROQ7uu6rtGPcsoBIR6SCyHlodmLs+oETI3adE9euHZvB1cVo4FQSsAA1x35JgjMBTcwSPVXsOZ4QhHgz4KPlV0LmrhQ78QhcJqkBU6VFdB6oVLsRasUj9eLm9x4YyBmVwbCwdnS/w5QzDGxQIDAQAB",
   "permissions": [
     "contextMenus",
@@ -14,7 +14,7 @@
     "service_worker": "service-worker.js"
   },
   "action": {
-    "default_title": "Save from Brave to Codex URL Vault",
+    "default_title": "Save from Chrome to Codex URL Vault",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon-16.png",
