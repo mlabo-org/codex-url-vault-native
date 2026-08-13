@@ -40,6 +40,11 @@ private func ffiArchiveURL(
     _ home: UnsafePointer<CChar>?,
     _ target: UnsafePointer<CChar>?
 ) -> UnsafeMutablePointer<CChar>?
+@_silgen_name("url_vault_delete_url")
+private func ffiDeleteURL(
+    _ home: UnsafePointer<CChar>?,
+    _ target: UnsafePointer<CChar>?
+) -> UnsafeMutablePointer<CChar>?
 @_silgen_name("url_vault_create_category")
 private func ffiCreateCategory(
     _ home: UnsafePointer<CChar>?,
@@ -170,6 +175,12 @@ enum RustVaultBridge {
     static func archiveURL(target: String) throws -> VaultMutation<VaultBookmark> {
         try target.withCString { pointer in
             try decode(ffiArchiveURL(nil, pointer))
+        }
+    }
+
+    static func deleteURL(target: String) throws -> VaultMutation<VaultBookmark> {
+        try target.withCString { pointer in
+            try decode(ffiDeleteURL(nil, pointer))
         }
     }
 

@@ -170,6 +170,15 @@ pub extern "C" fn url_vault_archive_url(home: *const c_char, target: *const c_ch
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn url_vault_delete_url(home: *const c_char, target: *const c_char) -> *mut c_char {
+    response(|| {
+        vault(home)?
+            .delete_url(&required_string(target, "target")?)
+            .map_err(|error| error.to_string())
+    })
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn url_vault_create_category(
     home: *const c_char,
     path: *const c_char,

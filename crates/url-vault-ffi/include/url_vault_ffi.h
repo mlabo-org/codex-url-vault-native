@@ -34,6 +34,7 @@ char *url_vault_move_url(
     const char *category
 );
 char *url_vault_archive_url(const char *home, const char *target);
+char *url_vault_delete_url(const char *home, const char *target);
 
 char *url_vault_create_category(
     const char *home,

@@ -177,6 +177,30 @@ fn archiving_a_category_moves_bookmarks_to_unfiled() {
 }
 
 #[test]
+fn deleting_a_url_removes_its_record_and_canonical_html_entry() {
+    let (home, vault) = vault();
+    let url = "https://example.test/delete-me";
+    let id = save(&vault, url, "Delete me", "Temporary");
+
+    let deleted = vault.delete_url(&id).expect("delete URL");
+
+    assert_eq!(deleted.item.id, id);
+    assert!(vault.list_urls(None, None).expect("list after delete").is_empty());
+    let connection = rusqlite::Connection::open(home.path().join("vault.sqlite"))
+        .expect("open Vault database");
+    let record_count: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM bookmarks WHERE id = ?1",
+            [&id],
+            |row| row.get(0),
+        )
+        .expect("count deleted record");
+    assert_eq!(record_count, 0);
+    let html = fs::read_to_string(vault.canonical_html_path()).expect("canonical HTML");
+    assert!(!html.contains(url));
+}
+
+#[test]
 fn opening_by_exact_bookmark_id_does_not_fall_back_to_fuzzy_search() {
     let (_home, vault) = vault();
     let id = save(

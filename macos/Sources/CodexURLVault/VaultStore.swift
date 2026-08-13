@@ -165,6 +165,18 @@ final class VaultStore: ObservableObject {
         }
     }
 
+    func delete(_ bookmark: VaultBookmark) -> Bool {
+        do {
+            _ = try RustVaultBridge.deleteURL(target: bookmark.id)
+            try reload()
+            activityMessage = "Deleted \(bookmark.displayTitle)"
+            return true
+        } catch {
+            fail(error)
+            return false
+        }
+    }
+
     func open(_ bookmark: VaultBookmark) {
         do {
             _ = try RustVaultBridge.openURL(target: bookmark.id)

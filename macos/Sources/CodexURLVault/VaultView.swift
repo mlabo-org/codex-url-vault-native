@@ -571,6 +571,7 @@ private struct BookmarkEditorView: View {
     @State private var intents: String
     @State private var note: String
     @State private var confirmArchive = false
+    @State private var confirmDelete = false
 
     init(store: VaultStore, bookmark: VaultBookmark?) {
         self.store = store
@@ -628,6 +629,9 @@ private struct BookmarkEditorView: View {
                     Button(strings.archive, role: .destructive) {
                         confirmArchive = true
                     }
+                    Button(strings.deleteURL, role: .destructive) {
+                        confirmDelete = true
+                    }
                 }
                 Spacer()
                 Button(strings.cancel) { dismiss() }
@@ -650,6 +654,18 @@ private struct BookmarkEditorView: View {
                     store.archive(bookmark)
                 }
                 dismiss()
+            }
+            Button(strings.cancel, role: .cancel) {}
+        }
+        .confirmationDialog(
+            strings.deleteURLTitle,
+            isPresented: $confirmDelete,
+            titleVisibility: .visible
+        ) {
+            Button(strings.deleteURL, role: .destructive) {
+                if let bookmark, store.delete(bookmark) {
+                    dismiss()
+                }
             }
             Button(strings.cancel, role: .cancel) {}
         }
@@ -1316,6 +1332,8 @@ struct VaultStrings {
     var open: String { text("開く", "Open") }
     var archive: String { text("アーカイブ", "Archive") }
     var archiveURLTitle: String { text("このURLをアーカイブしますか？", "Archive this URL?") }
+    var deleteURL: String { text("削除", "Delete") }
+    var deleteURLTitle: String { text("このURLをVaultから削除しますか？ この操作は取り消せません。", "Delete this URL from the Vault? This cannot be undone.") }
     var title: String { text("タイトル", "Title") }
     var tags: String { text("タグ", "Tags") }
     var aliases: String { text("エイリアス", "Aliases") }
