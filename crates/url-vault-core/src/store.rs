@@ -368,6 +368,15 @@ impl Vault {
         })
     }
 
+    pub fn delete_url(&self, target: &str) -> Result<MutationResult<Bookmark>> {
+        let target = target.to_owned();
+        self.mutate(|transaction| {
+            let bookmark = resolve_bookmark_on(transaction, &target, 5)?;
+            transaction.execute("DELETE FROM bookmarks WHERE id = ?1", [&bookmark.id])?;
+            Ok(bookmark)
+        })
+    }
+
     pub fn create_category(
         &self,
         path: &str,
