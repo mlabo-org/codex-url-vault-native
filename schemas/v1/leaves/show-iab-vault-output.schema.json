@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"codex-url-vault/show-iab-vault-output/v1","type":"object","required":["viewerUrl","origin"],"properties":{"viewerUrl":{"type":"string"},"origin":{"type":"string"}},"additionalProperties":false}

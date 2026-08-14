@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"codex-url-vault/save-snapshot-input/v1","type":"object","required":["target","content"],"properties":{"target":{"type":"string"},"content":{"type":"string"},"kind":{"type":"string","enum":["semantic","verbatim"]},"title":{"type":"string"},"captured_at":{"type":"string"}},"additionalProperties":false}

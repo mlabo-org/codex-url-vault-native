@@ -1,0 +1,296 @@
+{
+  "manifestVersion": "local-capability-manifest/v1",
+  "publisher": "suzuki-makoto",
+  "packageKind": "plugin",
+  "packageId": "codex-url-vault",
+  "descriptorVersion": "0.1.0",
+  "capabilities": [
+    {
+      "leafId": "search-urls",
+      "title": "Search saved URLs",
+      "description": "Search active Codex URL Vault bookmarks and verified snapshot text without opening a URL.",
+      "executionClass": "server_stateful",
+      "runtimeBinding": { "kind": "mcp_tool", "mcpServer": "codex-url-vault", "tool": "search_urls" },
+      "authorityRequests": [{ "authority": "local_vault_read", "reason": "Read the caller's local URL Vault and referenced snapshot verification state." }],
+      "artifactRoots": [],
+      "inputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/search-urls-input/v1", "path": "schemas/v1/leaves/search-urls-input.schema.json" },
+      "outputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/search-urls-output/v1", "path": "schemas/v1/leaves/search-urls-output.schema.json" },
+      "inputPorts": [], "outputPorts": []
+    },
+    {
+      "leafId": "suggest-urls",
+      "title": "Suggest saved URLs",
+      "description": "Resolve a conversational URL request into ranked saved candidates and an open-directly decision.",
+      "executionClass": "server_stateful",
+      "runtimeBinding": { "kind": "mcp_tool", "mcpServer": "codex-url-vault", "tool": "suggest_urls" },
+      "authorityRequests": [{ "authority": "local_vault_read", "reason": "Read the caller's local URL Vault and referenced snapshot verification state." }],
+      "artifactRoots": [],
+      "inputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/suggest-urls-input/v1", "path": "schemas/v1/leaves/suggest-urls-input.schema.json" },
+      "outputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/suggest-urls-output/v1", "path": "schemas/v1/leaves/suggest-urls-output.schema.json" },
+      "inputPorts": [], "outputPorts": []
+    },
+    {
+      "leafId": "get-url",
+      "title": "Get a saved URL",
+      "description": "Resolve and return one active bookmark from the local URL Vault.",
+      "executionClass": "server_stateful",
+      "runtimeBinding": { "kind": "mcp_tool", "mcpServer": "codex-url-vault", "tool": "get_url" },
+      "authorityRequests": [{ "authority": "local_vault_read", "reason": "Read one bookmark and its verified snapshot metadata from the caller's local Vault." }],
+      "artifactRoots": [],
+      "inputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/get-url-input/v1", "path": "schemas/v1/leaves/get-url-input.schema.json" },
+      "outputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/get-url-output/v1", "path": "schemas/v1/leaves/get-url-output.schema.json" },
+      "inputPorts": [], "outputPorts": []
+    },
+    {
+      "leafId": "list-urls",
+      "title": "List saved URLs",
+      "description": "List active URL Vault bookmarks, optionally within one category.",
+      "executionClass": "server_stateful",
+      "runtimeBinding": { "kind": "mcp_tool", "mcpServer": "codex-url-vault", "tool": "list_urls" },
+      "authorityRequests": [{ "authority": "local_vault_read", "reason": "Read the caller's local URL Vault and referenced snapshot verification state." }],
+      "artifactRoots": [],
+      "inputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/list-urls-input/v1", "path": "schemas/v1/leaves/list-urls-input.schema.json" },
+      "outputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/list-urls-output/v1", "path": "schemas/v1/leaves/list-urls-output.schema.json" },
+      "inputPorts": [], "outputPorts": []
+    },
+    {
+      "leafId": "list-categories",
+      "title": "List Vault categories",
+      "description": "List active URL Vault categories with active bookmark counts.",
+      "executionClass": "server_stateful",
+      "runtimeBinding": { "kind": "mcp_tool", "mcpServer": "codex-url-vault", "tool": "list_categories" },
+      "authorityRequests": [{ "authority": "local_vault_read", "reason": "Read categories and bookmark counts from the caller's local Vault." }],
+      "artifactRoots": [],
+      "inputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/list-categories-input/v1", "path": "schemas/v1/leaves/list-categories-input.schema.json" },
+      "outputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/list-categories-output/v1", "path": "schemas/v1/leaves/list-categories-output.schema.json" },
+      "inputPorts": [], "outputPorts": []
+    },
+    {
+      "leafId": "get-snapshot",
+      "title": "Get preserved snapshot",
+      "description": "Verify and return caller-preserved UTF-8 snapshot content for one saved URL without fetching the web.",
+      "executionClass": "server_stateful",
+      "runtimeBinding": { "kind": "mcp_tool", "mcpServer": "codex-url-vault", "tool": "get_snapshot" },
+      "authorityRequests": [
+        { "authority": "local_vault_read", "reason": "Resolve the bookmark and snapshot record in the caller's local Vault." },
+        { "authority": "local_snapshot_read", "reason": "Read and verify the explicitly preserved snapshot file." },
+        { "authority": "local_vault_write", "reason": "Persist the snapshot verification status and timestamp." }
+      ],
+      "artifactRoots": [],
+      "inputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/get-snapshot-input/v1", "path": "schemas/v1/leaves/get-snapshot-input.schema.json" },
+      "outputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/get-snapshot-output/v1", "path": "schemas/v1/leaves/get-snapshot-output.schema.json" },
+      "inputPorts": [], "outputPorts": []
+    },
+    {
+      "leafId": "verify-snapshots",
+      "title": "Verify preserved snapshots",
+      "description": "Verify one or all active snapshot references for containment, presence, digest, byte count, and UTF-8 validity.",
+      "executionClass": "server_stateful",
+      "runtimeBinding": { "kind": "mcp_tool", "mcpServer": "codex-url-vault", "tool": "verify_snapshots" },
+      "authorityRequests": [
+        { "authority": "local_vault_read", "reason": "Read snapshot records from the caller's local Vault." },
+        { "authority": "local_snapshot_read", "reason": "Read preserved snapshot files for verification." },
+        { "authority": "local_vault_write", "reason": "Persist snapshot verification statuses and timestamps." }
+      ],
+      "artifactRoots": [],
+      "inputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/verify-snapshots-input/v1", "path": "schemas/v1/leaves/verify-snapshots-input.schema.json" },
+      "outputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/verify-snapshots-output/v1", "path": "schemas/v1/leaves/verify-snapshots-output.schema.json" },
+      "inputPorts": [], "outputPorts": []
+    },
+    {
+      "leafId": "save-url",
+      "title": "Save a URL",
+      "description": "Create or update one URL Vault bookmark from a caller-supplied URL and metadata.",
+      "executionClass": "server_stateful",
+      "runtimeBinding": { "kind": "mcp_tool", "mcpServer": "codex-url-vault", "tool": "save_url" },
+      "authorityRequests": [{ "authority": "local_vault_write", "reason": "Create or update the caller's local bookmark database and canonical HTML export." }],
+      "artifactRoots": [],
+      "inputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/save-url-input/v1", "path": "schemas/v1/leaves/save-url-input.schema.json" },
+      "outputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/save-url-output/v1", "path": "schemas/v1/leaves/save-url-output.schema.json" },
+      "inputPorts": [], "outputPorts": []
+    },
+    {
+      "leafId": "save-current-browser-page",
+      "title": "Save the current browser page",
+      "description": "Capture the exact foreground Brave or Chrome tab through the native bridge and save it to the local Vault.",
+      "executionClass": "server_stateful",
+      "runtimeBinding": { "kind": "mcp_tool", "mcpServer": "codex-url-vault", "tool": "save_current_browser_page" },
+      "authorityRequests": [
+        { "authority": "browser_current_page_read", "reason": "Read the URL and title of the selected browser's foreground active tab through its installed extension." },
+        { "authority": "local_vault_write", "reason": "Create or update the captured bookmark in the caller's local Vault." }
+      ],
+      "artifactRoots": [],
+      "inputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/save-current-browser-page-input/v1", "path": "schemas/v1/leaves/save-current-browser-page-input.schema.json" },
+      "outputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/save-current-browser-page-output/v1", "path": "schemas/v1/leaves/save-current-browser-page-output.schema.json" },
+      "inputPorts": [], "outputPorts": []
+    },
+    {
+      "leafId": "update-url",
+      "title": "Update a saved URL",
+      "description": "Update one bookmark, creating a replacement identity when its URL changes.",
+      "executionClass": "server_stateful",
+      "runtimeBinding": { "kind": "mcp_tool", "mcpServer": "codex-url-vault", "tool": "update_url" },
+      "authorityRequests": [{ "authority": "local_vault_write", "reason": "Update the target bookmark and canonical HTML export." }],
+      "artifactRoots": [],
+      "inputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/update-url-input/v1", "path": "schemas/v1/leaves/update-url-input.schema.json" },
+      "outputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/update-url-output/v1", "path": "schemas/v1/leaves/update-url-output.schema.json" },
+      "inputPorts": [], "outputPorts": []
+    },
+    {
+      "leafId": "move-url",
+      "title": "Move a saved URL",
+      "description": "Move one active bookmark to a Vault category without changing URL identity.",
+      "executionClass": "server_stateful",
+      "runtimeBinding": { "kind": "mcp_tool", "mcpServer": "codex-url-vault", "tool": "move_url" },
+      "authorityRequests": [{ "authority": "local_vault_write", "reason": "Move the target bookmark and update the canonical HTML export." }],
+      "artifactRoots": [],
+      "inputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/move-url-input/v1", "path": "schemas/v1/leaves/move-url-input.schema.json" },
+      "outputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/move-url-output/v1", "path": "schemas/v1/leaves/move-url-output.schema.json" },
+      "inputPorts": [], "outputPorts": []
+    },
+    {
+      "leafId": "archive-url",
+      "title": "Archive a saved URL",
+      "description": "Soft-archive one active bookmark while retaining its record.",
+      "executionClass": "server_stateful",
+      "runtimeBinding": { "kind": "mcp_tool", "mcpServer": "codex-url-vault", "tool": "archive_url" },
+      "authorityRequests": [{ "authority": "local_vault_write", "reason": "Archive the target bookmark and update the canonical HTML export." }],
+      "artifactRoots": [],
+      "inputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/archive-url-input/v1", "path": "schemas/v1/leaves/archive-url-input.schema.json" },
+      "outputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/archive-url-output/v1", "path": "schemas/v1/leaves/archive-url-output.schema.json" },
+      "inputPorts": [], "outputPorts": []
+    },
+    {
+      "leafId": "create-category",
+      "title": "Create a Vault category",
+      "description": "Create or reactivate one local URL Vault category.",
+      "executionClass": "server_stateful",
+      "runtimeBinding": { "kind": "mcp_tool", "mcpServer": "codex-url-vault", "tool": "create_category" },
+      "authorityRequests": [{ "authority": "local_vault_write", "reason": "Create or reactivate a category and update the canonical HTML export." }],
+      "artifactRoots": [],
+      "inputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/create-category-input/v1", "path": "schemas/v1/leaves/create-category-input.schema.json" },
+      "outputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/create-category-output/v1", "path": "schemas/v1/leaves/create-category-output.schema.json" },
+      "inputPorts": [], "outputPorts": []
+    },
+    {
+      "leafId": "rename-category",
+      "title": "Rename a Vault category",
+      "description": "Rename one category and move its active bookmarks while preserving import history.",
+      "executionClass": "server_stateful",
+      "runtimeBinding": { "kind": "mcp_tool", "mcpServer": "codex-url-vault", "tool": "rename_category" },
+      "authorityRequests": [{ "authority": "local_vault_write", "reason": "Rename the category, move contained bookmarks, and update the canonical HTML export." }],
+      "artifactRoots": [],
+      "inputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/rename-category-input/v1", "path": "schemas/v1/leaves/rename-category-input.schema.json" },
+      "outputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/rename-category-output/v1", "path": "schemas/v1/leaves/rename-category-output.schema.json" },
+      "inputPorts": [], "outputPorts": []
+    },
+    {
+      "leafId": "archive-category",
+      "title": "Archive a Vault category",
+      "description": "Archive one category and move contained bookmarks to Unfiled or a selected destination.",
+      "executionClass": "server_stateful",
+      "runtimeBinding": { "kind": "mcp_tool", "mcpServer": "codex-url-vault", "tool": "archive_category" },
+      "authorityRequests": [{ "authority": "local_vault_write", "reason": "Archive the category, move contained bookmarks, and update the canonical HTML export." }],
+      "artifactRoots": [],
+      "inputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/archive-category-input/v1", "path": "schemas/v1/leaves/archive-category-input.schema.json" },
+      "outputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/archive-category-output/v1", "path": "schemas/v1/leaves/archive-category-output.schema.json" },
+      "inputPorts": [], "outputPorts": []
+    },
+    {
+      "leafId": "preview-bookmark-import",
+      "title": "Preview a bookmark import",
+      "description": "Deterministically parse caller-supplied Netscape bookmark HTML and return counts plus its required SHA-256 without mutation.",
+      "executionClass": "server_deterministic",
+      "runtimeBinding": { "kind": "mcp_tool", "mcpServer": "codex-url-vault", "tool": "preview_bookmark_import" },
+      "authorityRequests": [],
+      "artifactRoots": [],
+      "inputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/preview-bookmark-import-input/v1", "path": "schemas/v1/leaves/preview-bookmark-import-input.schema.json" },
+      "outputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/preview-bookmark-import-output/v1", "path": "schemas/v1/leaves/preview-bookmark-import-output.schema.json" },
+      "inputPorts": [], "outputPorts": []
+    },
+    {
+      "leafId": "apply-bookmark-import",
+      "title": "Apply a bookmark import",
+      "description": "Apply a checksum-pinned add, merge, or explicitly confirmed reset bookmark import.",
+      "executionClass": "server_stateful",
+      "runtimeBinding": { "kind": "mcp_tool", "mcpServer": "codex-url-vault", "tool": "apply_bookmark_import" },
+      "authorityRequests": [{ "authority": "local_vault_import", "reason": "Mutate the local Vault according to the checksum-pinned import mode; reset additionally requires confirm_reset=true." }],
+      "artifactRoots": [],
+      "inputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/apply-bookmark-import-input/v1", "path": "schemas/v1/leaves/apply-bookmark-import-input.schema.json" },
+      "outputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/apply-bookmark-import-output/v1", "path": "schemas/v1/leaves/apply-bookmark-import-output.schema.json" },
+      "inputPorts": [], "outputPorts": []
+    },
+    {
+      "leafId": "save-snapshot",
+      "title": "Save preserved content",
+      "description": "Preserve caller-supplied UTF-8 text or Markdown for an existing bookmark without fetching the page.",
+      "executionClass": "server_stateful",
+      "runtimeBinding": { "kind": "mcp_tool", "mcpServer": "codex-url-vault", "tool": "save_snapshot" },
+      "authorityRequests": [
+        { "authority": "local_vault_write", "reason": "Attach snapshot metadata to the selected bookmark and update the canonical HTML export." },
+        { "authority": "local_snapshot_write", "reason": "Write the caller-supplied UTF-8 snapshot beneath the Vault snapshot directory." }
+      ],
+      "artifactRoots": [],
+      "inputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/save-snapshot-input/v1", "path": "schemas/v1/leaves/save-snapshot-input.schema.json" },
+      "outputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/save-snapshot-output/v1", "path": "schemas/v1/leaves/save-snapshot-output.schema.json" },
+      "inputPorts": [], "outputPorts": []
+    },
+    {
+      "leafId": "open-url",
+      "title": "Open a saved URL",
+      "description": "Resolve a saved http/https URL and open it in the configured macOS browser unless dryRun is true.",
+      "executionClass": "server_stateful",
+      "runtimeBinding": { "kind": "mcp_tool", "mcpServer": "codex-url-vault", "tool": "open_url" },
+      "authorityRequests": [
+        { "authority": "local_vault_write", "reason": "Read the bookmark and record the open event, including for dry-run resolution." },
+        { "authority": "macos_browser_open", "reason": "Launch the selected browser only when dryRun is false." }
+      ],
+      "artifactRoots": [],
+      "inputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/open-url-input/v1", "path": "schemas/v1/leaves/open-url-input.schema.json" },
+      "outputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/open-url-output/v1", "path": "schemas/v1/leaves/open-url-output.schema.json" },
+      "inputPorts": [], "outputPorts": []
+    },
+    {
+      "leafId": "show-vault",
+      "title": "Show Codex URL Vault",
+      "description": "Launch or activate the installed native Codex URL Vault macOS application.",
+      "executionClass": "server_stateful",
+      "runtimeBinding": { "kind": "mcp_tool", "mcpServer": "codex-url-vault", "tool": "show_vault" },
+      "authorityRequests": [{ "authority": "macos_app_open", "reason": "Launch or activate the resolved Codex URL Vault application bundle." }],
+      "artifactRoots": [],
+      "inputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/show-vault-input/v1", "path": "schemas/v1/leaves/show-vault-input.schema.json" },
+      "outputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/show-vault-output/v1", "path": "schemas/v1/leaves/show-vault-output.schema.json" },
+      "inputPorts": [], "outputPorts": []
+    },
+    {
+      "leafId": "show-iab-vault",
+      "title": "Start the Codex Browser Vault viewer",
+      "description": "Start or reuse the authenticated localhost Vault viewer and return its URL without navigating Codex Browser.",
+      "executionClass": "server_stateful",
+      "runtimeBinding": { "kind": "mcp_tool", "mcpServer": "codex-url-vault", "tool": "show_iab_vault" },
+      "authorityRequests": [
+        { "authority": "local_vault_read_write", "reason": "Serve the local Vault viewer and its user-initiated Vault operations." },
+        { "authority": "localhost_listener", "reason": "Bind an authenticated loopback-only HTTP viewer session." }
+      ],
+      "artifactRoots": [],
+      "inputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/show-iab-vault-input/v1", "path": "schemas/v1/leaves/show-iab-vault-input.schema.json" },
+      "outputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/show-iab-vault-output/v1", "path": "schemas/v1/leaves/show-iab-vault-output.schema.json" },
+      "inputPorts": [], "outputPorts": []
+    },
+    {
+      "leafId": "coordinate-url-vault",
+      "title": "Coordinate a URL Vault request",
+      "description": "Interpret one user request, select the exact declared URL Vault MCP leaf, preserve mutation and ambiguity boundaries, and perform a separate Codex Browser navigation only when explicitly requested.",
+      "executionClass": "host_coordinator",
+      "runtimeBinding": {
+        "kind": "host_coordinator",
+        "instruction": "Follow the public Codex URL Vault skill contract. Route the request to the exact codex-url-vault MCP tool or the checksum-pinned preview/apply sequence. Treat model reasoning as host coordination, never as MCP execution. For show_iab_vault, navigate Codex Browser to the returned viewerUrl only when the request asks for the in-Codex viewer. Preserve every selected leaf's authority requests and stop conditions."
+      },
+      "authorityRequests": [],
+      "artifactRoots": [],
+      "inputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/coordinate-url-vault-input/v1", "path": "schemas/v1/leaves/coordinate-url-vault-input.schema.json" },
+      "outputSchema": { "schemaVersion": "local-capability-schema/v1", "schemaId": "codex-url-vault/coordinate-url-vault-output/v1", "path": "schemas/v1/leaves/coordinate-url-vault-output.schema.json" },
+      "inputPorts": [], "outputPorts": []
+    }
+  ]
+}
