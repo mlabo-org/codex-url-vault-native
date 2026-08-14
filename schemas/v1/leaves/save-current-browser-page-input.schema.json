@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"codex-url-vault/save-current-browser-page-input/v1","type":"object","properties":{"browser":{"type":"string","enum":["brave","chrome"]},"folder_path":{"type":"string"},"tags":{"type":"array","items":{"type":"string"}},"note":{"type":"string"}},"additionalProperties":false}

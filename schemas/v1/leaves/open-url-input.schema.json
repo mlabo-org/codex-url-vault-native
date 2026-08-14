@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"codex-url-vault/open-url-input/v1","type":"object","required":["target"],"properties":{"target":{"type":"string"},"browser":{"type":"string","enum":["default","brave","chrome","firefox","safari"]},"dryRun":{"type":"boolean"},"openedBy":{"type":"string"},"context":{"type":"string"}},"additionalProperties":false}

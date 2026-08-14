@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"codex-url-vault/move-url-input/v1","type":"object","required":["target","category"],"properties":{"target":{"type":"string"},"category":{"type":"string"}},"additionalProperties":false}

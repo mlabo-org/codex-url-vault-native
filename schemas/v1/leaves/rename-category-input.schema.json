@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"codex-url-vault/rename-category-input/v1","type":"object","required":["oldPath","newPath"],"properties":{"oldPath":{"type":"string"},"newPath":{"type":"string"}},"additionalProperties":false}

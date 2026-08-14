@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"codex-url-vault/show-vault-output/v1","type":"object","required":["appPath"],"properties":{"appPath":{"type":"string"}},"additionalProperties":false}

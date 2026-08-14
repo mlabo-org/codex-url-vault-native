@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"codex-url-vault/create-category-input/v1","type":"object","required":["path"],"properties":{"path":{"type":"string"},"label":{"type":"string"},"note":{"type":"string"}},"additionalProperties":false}

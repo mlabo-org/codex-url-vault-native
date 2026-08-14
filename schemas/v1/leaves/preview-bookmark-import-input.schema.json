@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"codex-url-vault/preview-bookmark-import-input/v1","type":"object","required":["html","fileName"],"properties":{"html":{"type":"string"},"fileName":{"type":"string"},"stripCommonRoot":{"type":"boolean"}},"additionalProperties":false}
