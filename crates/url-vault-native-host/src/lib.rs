@@ -22,6 +22,7 @@ pub const MANIFEST_FILE_NAME: &str = "com.suzukimakoto.codex_url_vault.json";
 const MAX_MESSAGE_BYTES: usize = 1024 * 1024;
 const BRIDGE_IO_TIMEOUT: Duration = Duration::from_secs(8);
 const LISTENER_POLL_INTERVAL: Duration = Duration::from_millis(20);
+const BRIDGE_DISCONNECTED_MESSAGE: &str = "browser extension disconnected before capture completed";
 static REQUEST_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -203,6 +204,14 @@ enum BridgeRequest {
     },
 }
 
+impl BridgeRequest {
+    fn id(&self) -> &str {
+        match self {
+            Self::SaveCurrentBrowserPage { id, .. } => id,
+        }
+    }
+}
+
 struct PendingCapture {
     stream: UnixStream,
     input: SaveCurrentBrowserPageInput,
@@ -214,6 +223,7 @@ enum BridgeEvent {
     NativeReadError(String),
     LocalPayload(Vec<u8>, UnixStream),
     ListenerError(String),
+    ListenerStopped,
 }
 
 struct SocketGuard {
@@ -264,16 +274,38 @@ pub fn serve_bridge<R: Read + Send + 'static, W: Write>(
     thread::spawn(move || accept_local_requests(listener, listener_tx, listener_stop));
     drop(events_tx);
 
+    run_bridge_events(events_rx, &mut writer, vault, stop.as_ref())
+}
+
+fn run_bridge_events(
+    events_rx: mpsc::Receiver<BridgeEvent>,
+    writer: &mut impl Write,
+    vault: &Vault,
+    stop: &AtomicBool,
+) -> Result<(), HostError> {
     let mut pending = HashMap::<String, PendingCapture>::new();
-    let result = loop {
-        let event = events_rx
-            .recv()
-            .map_err(|_| HostError::BridgeProtocol("bridge event channel closed".to_owned()))?;
+    let mut terminal_result = None;
+    loop {
+        let event = match events_rx.recv() {
+            Ok(event) => event,
+            Err(_) => {
+                if terminal_result.is_none() {
+                    enter_bridge_terminal(
+                        stop,
+                        &mut pending,
+                        &mut terminal_result,
+                        Err(HostError::BridgeProtocol(
+                            "bridge event channel closed".to_owned(),
+                        )),
+                    );
+                }
+                return terminal_result.expect("terminal result recorded");
+            }
+        };
         match event {
-            BridgeEvent::NativePayload(payload) => {
-                let request = serde_json::from_slice::<NativeRequest>(&payload)?;
-                match request {
-                    NativeRequest::CurrentPageResult {
+            BridgeEvent::NativePayload(payload) if terminal_result.is_none() => {
+                let handled = match serde_json::from_slice::<NativeRequest>(&payload) {
+                    Ok(NativeRequest::CurrentPageResult {
                         id,
                         browser,
                         ok,
@@ -283,52 +315,98 @@ pub fn serve_bridge<R: Read + Send + 'static, W: Write>(
                         window_id,
                         captured_at,
                         error,
-                    } => {
-                        handle_current_page_result(
-                            vault,
-                            &mut pending,
-                            CurrentPageCapture {
-                                id,
-                                browser,
-                                ok,
-                                url,
-                                title,
-                                tab_id,
-                                window_id,
-                                captured_at,
-                                error,
-                            },
-                        )?;
-                    }
-                    request => {
+                    }) => handle_current_page_result(
+                        vault,
+                        &mut pending,
+                        CurrentPageCapture {
+                            id,
+                            browser,
+                            ok,
+                            url,
+                            title,
+                            tab_id,
+                            window_id,
+                            captured_at,
+                            error,
+                        },
+                    ),
+                    Ok(request) => {
                         let response = handle_request(vault, request);
-                        write_frame(&mut writer, &response)?;
+                        write_frame(writer, &response)
+                    }
+                    Err(error) => Err(HostError::Json(error)),
+                };
+                if let Err(error) = handled {
+                    enter_bridge_terminal(stop, &mut pending, &mut terminal_result, Err(error));
+                }
+            }
+            BridgeEvent::NativePayload(_) => {}
+            BridgeEvent::LocalPayload(payload, mut stream) => {
+                let connected = terminal_result.is_none();
+                let handled =
+                    handle_local_request(&payload, &mut stream, writer, &mut pending, connected);
+                if let Err(error) = handled {
+                    if terminal_result.is_none() {
+                        enter_bridge_terminal(stop, &mut pending, &mut terminal_result, Err(error));
                     }
                 }
             }
-            BridgeEvent::LocalPayload(payload, mut stream) => {
-                handle_local_request(&payload, &mut stream, &mut writer, &mut pending)?;
+            BridgeEvent::NativeClosed => {
+                if terminal_result.is_none() {
+                    enter_bridge_terminal(stop, &mut pending, &mut terminal_result, Ok(()));
+                }
             }
-            BridgeEvent::NativeClosed => break Ok(()),
             BridgeEvent::NativeReadError(error) => {
-                break Err(HostError::BridgeProtocol(error));
+                if terminal_result.is_none() {
+                    enter_bridge_terminal(
+                        stop,
+                        &mut pending,
+                        &mut terminal_result,
+                        Err(HostError::BridgeProtocol(error)),
+                    );
+                }
             }
             BridgeEvent::ListenerError(error) => {
-                break Err(HostError::BridgeUnavailable(error));
+                if terminal_result.is_none() {
+                    enter_bridge_terminal(
+                        stop,
+                        &mut pending,
+                        &mut terminal_result,
+                        Err(HostError::BridgeUnavailable(error)),
+                    );
+                }
+            }
+            BridgeEvent::ListenerStopped => {
+                if terminal_result.is_none() {
+                    enter_bridge_terminal(
+                        stop,
+                        &mut pending,
+                        &mut terminal_result,
+                        Err(HostError::BridgeProtocol(
+                            "bridge listener stopped before the native connection closed"
+                                .to_owned(),
+                        )),
+                    );
+                }
+                return terminal_result.expect("terminal result recorded");
             }
         }
-    };
+    }
+}
 
+fn enter_bridge_terminal(
+    stop: &AtomicBool,
+    pending: &mut HashMap<String, PendingCapture>,
+    terminal_result: &mut Option<Result<(), HostError>>,
+    result: Result<(), HostError>,
+) {
     stop.store(true, Ordering::Release);
-    let disconnected = NativeResponse::failure(
-        None,
-        "bridge_disconnected",
-        "browser extension disconnected before capture completed",
-    );
-    for (_, mut capture) in pending {
+    for (id, mut capture) in pending.drain() {
+        let disconnected =
+            NativeResponse::failure(Some(id), "bridge_disconnected", BRIDGE_DISCONNECTED_MESSAGE);
         let _ = write_frame(&mut capture.stream, &disconnected);
     }
-    result
+    *terminal_result = Some(result);
 }
 
 pub fn request_save_current_browser_page(
@@ -496,6 +574,7 @@ fn handle_local_request(
     stream: &mut UnixStream,
     writer: &mut impl Write,
     pending: &mut HashMap<String, PendingCapture>,
+    connected: bool,
 ) -> Result<(), HostError> {
     let request = match serde_json::from_slice::<BridgeRequest>(payload) {
         Ok(request) => request,
@@ -506,6 +585,15 @@ fn handle_local_request(
             return Ok(());
         }
     };
+    if !connected {
+        let response = NativeResponse::failure(
+            Some(request.id().to_owned()),
+            "bridge_disconnected",
+            BRIDGE_DISCONNECTED_MESSAGE,
+        );
+        write_frame(stream, &response)?;
+        return Ok(());
+    }
     match request {
         BridgeRequest::SaveCurrentBrowserPage {
             id,
@@ -545,7 +633,7 @@ fn handle_local_request(
                 let response = NativeResponse::failure(
                     Some(id),
                     "bridge_disconnected",
-                    "browser extension is not connected",
+                    BRIDGE_DISCONNECTED_MESSAGE,
                 );
                 let _ = write_frame(stream, &response);
                 return Err(error);
@@ -614,6 +702,7 @@ fn accept_local_requests(
             }
         }
     }
+    let _ = events.send(BridgeEvent::ListenerStopped);
 }
 
 fn bind_bridge_listener(path: &Path) -> Result<UnixListener, HostError> {
@@ -884,6 +973,67 @@ mod tests {
             .expect("host thread")
             .expect("persistent bridge");
         assert!(!bridge_socket_path(&client_vault).exists());
+    }
+
+    #[test]
+    fn native_disconnect_resolves_accepted_local_request_in_both_event_orders() {
+        for native_closes_first in [true, false] {
+            let home = tempfile::tempdir().expect("temporary Vault");
+            let vault = Vault::at(home.path()).expect("Vault");
+            vault.init().expect("initialize Vault");
+            let (host_stream, mut client_stream) = UnixStream::pair().expect("local bridge pair");
+            client_stream
+                .set_read_timeout(Some(Duration::from_secs(1)))
+                .expect("client read timeout");
+            let payload = serde_json::to_vec(&BridgeRequest::SaveCurrentBrowserPage {
+                id: "capture-disconnect".to_owned(),
+                browser: Some(Browser::Brave),
+                folder_path: None,
+                tags: Vec::new(),
+                note: None,
+            })
+            .expect("bridge request JSON");
+            let local_event = BridgeEvent::LocalPayload(payload, host_stream);
+            let (events_tx, events_rx) = mpsc::channel();
+            if native_closes_first {
+                events_tx
+                    .send(BridgeEvent::NativeClosed)
+                    .expect("queue native close");
+                events_tx.send(local_event).expect("queue local request");
+            } else {
+                events_tx.send(local_event).expect("queue local request");
+                events_tx
+                    .send(BridgeEvent::NativeClosed)
+                    .expect("queue native close");
+            }
+            events_tx
+                .send(BridgeEvent::ListenerStopped)
+                .expect("queue listener stop");
+            drop(events_tx);
+
+            let stop = AtomicBool::new(false);
+            let mut native_output = Vec::new();
+            run_bridge_events(events_rx, &mut native_output, &vault, &stop)
+                .expect("clean native disconnect");
+
+            let response_payload = read_frame(&mut client_stream)
+                .expect("read disconnect response")
+                .expect("framed disconnect response");
+            let response: NativeResponse =
+                serde_json::from_slice(&response_payload).expect("disconnect response JSON");
+            assert_eq!(response.id.as_deref(), Some("capture-disconnect"));
+            assert!(!response.ok);
+            let error = response.error.expect("structured disconnect error");
+            assert_eq!(error.code, "bridge_disconnected");
+            assert_eq!(error.message, BRIDGE_DISCONNECTED_MESSAGE);
+            assert!(
+                read_frame(&mut client_stream)
+                    .expect("read bridge EOF after response")
+                    .is_none(),
+                "accepted request received more than one response"
+            );
+            assert!(stop.load(Ordering::Acquire));
+        }
     }
 
     #[test]
