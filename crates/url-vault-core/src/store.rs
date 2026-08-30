@@ -1088,22 +1088,34 @@ impl Vault {
         let _guard = self.mutation_guard()?;
         let conn = self.raw_connection()?;
         let opened_at = now_iso();
-        let open_id = short_hash(format!("{}{}{}{}", url, browser, opened_by, opened_at));
-        conn.execute(
-            r#"
-            INSERT INTO opens(id, bookmark_id, url, opened_browser, opened_by, opened_at, context)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-            "#,
-            params![
-                open_id,
-                bookmark_id,
-                url,
-                browser,
-                opened_by,
-                opened_at,
-                context
-            ],
-        )?;
+        let base_id = short_hash(format!("{}{}{}{}", url, browser, opened_by, opened_at));
+        // `opened_at` is intentionally second-precision for the public record, so
+        // include a collision suffix when multiple opens share the same second.
+        for attempt in 0_u32.. {
+            let open_id = if attempt == 0 {
+                base_id.clone()
+            } else {
+                short_hash(format!("{base_id}:{attempt}"))
+            };
+            let inserted = conn.execute(
+                r#"
+                INSERT OR IGNORE INTO opens(id, bookmark_id, url, opened_browser, opened_by, opened_at, context)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                "#,
+                params![
+                    open_id,
+                    bookmark_id,
+                    url,
+                    browser,
+                    opened_by,
+                    opened_at,
+                    context
+                ],
+            )?;
+            if inserted == 1 {
+                break;
+            }
+        }
         if let Some(bookmark_id) = bookmark_id {
             conn.execute(
                 r#"
@@ -1819,5 +1831,29 @@ mod path_tests {
             expand_home_from(DEFAULT_APP_PATH, Some(PathBuf::from("/Users/example"))),
             PathBuf::from("/Users/example/Applications/Codex URL Vault.app")
         );
+    }
+
+    #[test]
+    fn repeated_open_in_one_second_records_distinct_open_ids() {
+        let home = tempfile::tempdir().expect("temporary Vault");
+        let vault = Vault::at(home.path()).expect("Vault");
+        vault.init().expect("initialize Vault");
+
+        vault
+            .open_url("https://example.test/repeated", None, true, "test", None)
+            .expect("first open");
+        vault
+            .open_url("https://example.test/repeated", None, true, "test", None)
+            .expect("second open");
+
+        let connection = vault.connection().expect("open database");
+        let (count, distinct): (i64, i64) = connection
+            .query_row(
+                "SELECT COUNT(*), COUNT(DISTINCT id) FROM opens",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("count opens");
+        assert_eq!((count, distinct), (2, 2));
     }
 }
