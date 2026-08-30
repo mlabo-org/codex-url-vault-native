@@ -528,34 +528,42 @@ fn handle_current_page_result(
         return Ok(());
     }
     let response = if capture.ok {
-        let tab_id = capture.tab_id.ok_or_else(|| {
-            HostError::BridgeProtocol("capture result is missing tab_id".to_owned())
-        })?;
-        let window_id = capture.window_id.ok_or_else(|| {
-            HostError::BridgeProtocol("capture result is missing window_id".to_owned())
-        })?;
-        let mut result = save_url(
-            vault,
-            &capture.url,
-            &capture.title,
-            request.input.folder_path.as_deref().unwrap_or_default(),
-            request.input.tags,
-            request.input.note.as_deref().unwrap_or_default(),
-            capture.browser,
-        )?;
-        let result_object = result.as_object_mut().ok_or_else(|| {
-            HostError::BridgeProtocol("save result is not a JSON object".to_owned())
-        })?;
-        result_object.insert(
-            "capture".to_owned(),
-            json!({
-                "browser": capture.browser,
-                "tab_id": tab_id,
-                "window_id": window_id,
-                "captured_at": capture.captured_at,
-            }),
-        );
-        NativeResponse::success(capture.id, result)
+        let result = (|| {
+            let tab_id = capture.tab_id.ok_or_else(|| {
+                HostError::BridgeProtocol("capture result is missing tab_id".to_owned())
+            })?;
+            let window_id = capture.window_id.ok_or_else(|| {
+                HostError::BridgeProtocol("capture result is missing window_id".to_owned())
+            })?;
+            let mut result = save_url(
+                vault,
+                &capture.url,
+                &capture.title,
+                request.input.folder_path.as_deref().unwrap_or_default(),
+                request.input.tags,
+                request.input.note.as_deref().unwrap_or_default(),
+                capture.browser,
+            )?;
+            let result_object = result.as_object_mut().ok_or_else(|| {
+                HostError::BridgeProtocol("save result is not a JSON object".to_owned())
+            })?;
+            result_object.insert(
+                "capture".to_owned(),
+                json!({
+                    "browser": capture.browser,
+                    "tab_id": tab_id,
+                    "window_id": window_id,
+                    "captured_at": capture.captured_at,
+                }),
+            );
+            Ok::<Value, HostError>(result)
+        })();
+        match result {
+            Ok(result) => NativeResponse::success(capture.id, result),
+            Err(error) => {
+                NativeResponse::failure(Some(capture.id), error_code(&error), error.to_string())
+            }
+        }
     } else {
         let error = capture.error.unwrap_or(NativeError {
             code: "capture_failed".to_owned(),
@@ -1079,6 +1087,57 @@ mod tests {
         assert_eq!(
             response.error.as_ref().map(|error| error.code.as_str()),
             Some("browser_mismatch")
+        );
+        assert!(pending.is_empty());
+    }
+
+    #[test]
+    fn malformed_success_capture_returns_one_framed_error_to_local_request() {
+        let home = tempfile::tempdir().expect("temporary Vault");
+        let vault = Vault::at(home.path()).expect("Vault");
+        vault.init().expect("initialize Vault");
+        let (host_stream, mut client_stream) = UnixStream::pair().expect("bridge pair");
+        let mut pending = HashMap::from([(
+            "capture-malformed".to_owned(),
+            PendingCapture {
+                stream: host_stream,
+                input: SaveCurrentBrowserPageInput::default(),
+            },
+        )]);
+
+        handle_current_page_result(
+            &vault,
+            &mut pending,
+            CurrentPageCapture {
+                id: "capture-malformed".to_owned(),
+                browser: Browser::Brave,
+                ok: true,
+                url: "https://example.test/current".to_owned(),
+                title: "Current page".to_owned(),
+                tab_id: None,
+                window_id: Some(4),
+                captured_at: None,
+                error: None,
+            },
+        )
+        .expect("malformed capture is reported to caller");
+
+        let payload = read_frame(&mut client_stream)
+            .expect("read malformed capture response")
+            .expect("framed malformed capture response");
+        let response: NativeResponse =
+            serde_json::from_slice(&payload).expect("malformed capture response JSON");
+        assert_eq!(response.id.as_deref(), Some("capture-malformed"));
+        assert!(!response.ok);
+        assert_eq!(
+            response.error.as_ref().map(|error| error.code.as_str()),
+            Some("bridge_protocol")
+        );
+        assert!(
+            read_frame(&mut client_stream)
+                .expect("read response terminator")
+                .is_none(),
+            "malformed capture received more than one response"
         );
         assert!(pending.is_empty());
     }
