@@ -1,4 +1,4 @@
 interface:
   display_name: "Codex URL Vault"
   short_description: "Save this URL from Brave or Chrome, or manage Vault links"
-  default_prompt: "Save the current browser page in Codex URL Vault."
+  default_prompt: "Use $codex-url-vault to save the current browser page in Codex URL Vault."
