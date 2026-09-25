@@ -8,7 +8,7 @@
 
 - このrepositoryは`codex-url-vault-native`という独立projectである。内部plugin identityの`codex-url-vault`、互換data、類似機能を理由に、非native `codex-url-vault` projectのsource、commit、branch、tag、remote、release、issue、pull requestを混在させない。
 - Rust、SwiftUI、Brave extension、Native Messaging Host、public plugin packageの正本はこのrepositoryとする。
-- `~/.codex/plugins/cache/`、installed app、`~/.codex/url-vault`、SQLite、bookmark HTML、snapshot、socket、`target/`、`dist/`、`macos/.build/`はruntimeまたはgenerated artifactであり、一次編集先やGitHub公開sourceにしない。
+- `~/.claude/plugins/cache/`、installed app、`~/.codex/url-vault`、SQLite、bookmark HTML、snapshot、socket、`target/`、`dist/`、`macos/.build/`はruntimeまたはgenerated artifactであり、一次編集先やGitHub公開sourceにしない。
 - GitHub公開先は同一identityの`mlabo-org/codex-url-vault-native`だけとし、非native repositoryを上書き、rename、履歴統合して代用しない。
 
 ## Portable Runtime Contract
