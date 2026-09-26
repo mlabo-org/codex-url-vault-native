@@ -13,6 +13,8 @@ requests, applicable `CLAUDE.md` files, or more specific local execution contrac
 
 ## Trigger and primary route
 
+In this skill, IAB and Codex Browser/IAB mean the Claude app's built-in browser pane (`mcp__Claude_Browser__*`); open a URL there with `preview_start`. The shared Vault MCP describes the same viewer in Codex terms.
+
 Use this skill when the user asks to save, find, list, inspect, organize, import, open,
 or show URLs in Codex URL Vault; says “save this URL,” “save this page,” or otherwise
 refers to the current Brave or Chrome page; asks to display the Vault inside Codex Browser/IAB;
