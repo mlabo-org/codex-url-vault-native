@@ -6,10 +6,10 @@ description: "Operate Codex URL Vault: save this URL or the current Brave or Chr
 # Codex URL Vault
 
 This `SKILL.md` is the local execution contract for this skill when the skill is selected.
-Codex must treat this file's trigger assumptions, workflow, tool boundaries, file
+Claude Code must treat this file's trigger assumptions, workflow, tool boundaries, file
 boundaries, and output shape as binding instructions within this skill's scope.
 This file does not override system instructions, developer instructions, explicit user
-requests, applicable `AGENTS.md` files, or more specific local execution contracts.
+requests, applicable `CLAUDE.md` files, or more specific local execution contracts.
 
 ## Trigger and primary route
 
