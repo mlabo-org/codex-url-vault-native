@@ -1,6 +1,6 @@
 ---
 name: codex-url-vault
-description: "Operate Codex URL Vault: save this URL or the current Brave or Chrome page, find and organize saved links, open the native macOS Vault or Codex Browser/IAB viewer, import bookmarks, and preserve supplied text. Route through task-oriented MCP tools."
+description: "Operate Codex URL Vault: save this URL or the current Brave or Chrome page, find and organize saved links, open the native macOS Vault or the in-Claude browser-pane viewer, import bookmarks, and preserve supplied text. Route through task-oriented MCP tools."
 ---
 
 # Codex URL Vault
@@ -13,23 +13,22 @@ requests, applicable `CLAUDE.md` files, or more specific local execution contrac
 
 ## Trigger and primary route
 
-In this skill, IAB and Codex Browser/IAB mean the Claude app's built-in browser pane (`mcp__Claude_Browser__*`); open a URL there with `preview_start`. The shared Vault MCP describes the same viewer in Codex terms.
-
 Use this skill when the user asks to save, find, list, inspect, organize, import, open,
 or show URLs in Codex URL Vault; says “save this URL,” “save this page,” or otherwise
-refers to the current Brave or Chrome page; asks to display the Vault inside Codex Browser/IAB;
+refers to the current Brave or Chrome page; asks to display the Vault inside Claude's built-in browser pane;
 or asks for explicitly preserved text associated with a saved URL.
 
 First use the plugin's `codex-url-vault` MCP tools. Do not replace those tools with
 shell commands, direct SQLite changes, or direct edits to Vault files. A bare request
-to show or open “the Vault” means `show_vault`. An explicit request for IAB, Codex内,
-or a browser-contained Vault means `show_iab_vault`; open the returned `viewerUrl`
-with Codex Browser/IAB over localhost. Do not substitute `file://`, shell launch, or
+to show or open “the Vault” means `show_vault`. An explicit request for the browser pane, Claude内,
+or a browser-contained Vault means `show_iab_vault`; open the returned localhost
+`viewerUrl` in the Claude Code built-in browser pane with `mcp__Claude_Browser__preview_start`
+(or `mcp__Claude_Browser__navigate` when the pane is already open). Do not substitute `file://`, shell launch, or
 the retired viewer runtime.
 
 Do not select this skill for general web research, arbitrary browser history, or
 content acquisition. Snapshot preservation stores text supplied by the caller. The
-IAB Reader Preview may fetch a page for temporary display, but it does not preserve
+viewer's Reader Preview may fetch a page for temporary display, but it does not preserve
 that content as a snapshot.
 
 For “this URL,” “this page,” or another explicit current-browser-page reference, call
@@ -48,8 +47,8 @@ the caller has already supplied the URL.
 - Browse saved material: call `list_urls`, `list_categories`, `get_url`, or
   `get_snapshot`.
 - Open a link or the independent app: call `open_url` or `show_vault`.
-- Show the card-based Vault inside Codex: call `show_iab_vault`, then use Codex
-  Browser/IAB to open its returned `viewerUrl`.
+- Show the card-based Vault inside Claude: call `show_iab_vault`, then open its
+  returned `viewerUrl` in the built-in browser pane.
 - Save the current Brave or Chrome page: call `save_current_browser_page`; pass an
   explicitly requested browser, category, tags, or note when present.
 - Save an explicit URL or organize existing records: call `save_url`, `update_url`,
@@ -78,5 +77,5 @@ Stop the affected action and report the exact error when the MCP server is unava
 the native app is missing, the selected browser bridge is disconnected, the selected browser is not foreground,
 the current tab changes during capture, the current page is not `http` or `https`, a
 bookmark target remains ambiguous, an import checksum no longer matches its preview,
-the IAB viewer cannot start, or the core rejects a snapshot path or payload. Do not
+the browser-pane viewer cannot start, or the core rejects a snapshot path or payload. Do not
 substitute another implementation or modify runtime files to bypass the failure.

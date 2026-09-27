@@ -1,6 +1,6 @@
 # Codex URL Vault Native
 
-Local-first URL library for Codex, built as a native macOS app and Rust toolchain.
+Local-first URL library for Claude Code, built as a native macOS app and Rust toolchain.
 
 [日本語](#日本語) | [English](#english)
 
@@ -20,7 +20,7 @@ Local-first URL library for Codex, built as a native macOS app and Rust toolchai
 
 ### 概要
 
-Codex URL Vault Native は、URL、カテゴリ、タグ、メモ、テキストスナップショットをローカルで管理する macOS 用 URL ライブラリです。SwiftUI アプリ、Rust CLI、Codex 向け MCP、Codex Browser/IAB Viewer、Brave／Chrome 拡張機能が同じ Rust core と Vault データを共有します。
+Codex URL Vault Native は、URL、カテゴリ、タグ、メモ、テキストスナップショットをローカルで管理する macOS 用 URL ライブラリです。SwiftUI アプリ、Rust CLI、Claude Code 向け MCP、Claude Code ブラウザペイン用 Viewer、Brave／Chrome 拡張機能が同じ Rust core と Vault データを共有します。
 
 この `codex-url-vault-native` repository は独立した native project です。installable plugin の identity は `codex-url-vault` ですが、非 native 版 repository の checkout や Git 履歴を流用していません。
 
@@ -36,8 +36,8 @@ Codex URL Vault Native は、URL、カテゴリ、タグ、メモ、テキスト
 - `System`／`Rounded`／`Serif`／`Monospaced` フォント設定
 - `10–32 pt` の数値入力と1 pt単位の文字サイズ変更
 - すべての表示設定の永続化
-- Codex から利用できる task-oriented MCP tools
-- Codex Browser/IAB 内で開く responsive card viewer
+- Claude Code から利用できる task-oriented MCP tools
+- Claude Code の組み込みブラウザペインで開く responsive card viewer
 - Brave または Chrome の現在の tab や選択 link を保存する Native Messaging 連携
 - 音声やテキストによる「この URL を保存して」への対応
 
@@ -49,8 +49,8 @@ Codex URL Vault Native は、URL、カテゴリ、タグ、メモ、テキスト
 | --- | --- |
 | `url-vault-core` | SQLite schema、検索、bookmark HTML 互換、snapshot、locking、canonical export |
 | `url-vault-cli` | machine-readable なローカル CLI |
-| `url-vault-mcp` | Codex が利用する stdio MCP server |
-| `url-vault-viewer` | token 付き ephemeral localhost IAB Viewer |
+| `url-vault-mcp` | Claude Code が利用する stdio MCP server |
+| `url-vault-viewer` | token 付き ephemeral localhost Viewer |
 | `url-vault-ffi` | SwiftUI app から Rust core を呼び出す operation-specific C ABI |
 | `Codex URL Vault.app` | native SwiftUI browser/editor |
 | `url-vault-native-host` | 選択した browser と Rust core を接続する Native Messaging Host／installer |
@@ -64,11 +64,11 @@ Codex URL Vault Native は、URL、カテゴリ、タグ、メモ、テキスト
 - macOS 14 以降
 - Swift 6.3 toolchain
 - Rust toolchain（Cargo、Rust 2024 edition 対応）
-- Codex CLI／Codex app（plugin を利用する場合）
+- Claude Code（plugin を利用する場合）
 - Brave または Google Chrome（現在の page を保存する場合）
 - Node.js（browser extension validator を実行する場合のみ）
 
-`app-shell-foundation` plugin は source の生成・更新に使用する maintenance tool であり、build dependency ではありません。生成済みの `AppShellFoundation.swift` は repository に含まれているため、通常の build に Codex plugin cache や個人環境の path は不要です。
+`app-shell-foundation` plugin は source の生成・更新に使用する maintenance tool であり、build dependency ではありません。生成済みの `AppShellFoundation.swift` は repository に含まれているため、通常の build に plugin cache や個人環境の path は不要です。
 
 ### Build
 
@@ -94,29 +94,24 @@ ditto "dist/Codex URL Vault.app" "$HOME/Applications/Codex URL Vault.app"
 open "$HOME/Applications/Codex URL Vault.app"
 ```
 
-Codex plugin launcher の既定 app path は `$HOME/Applications/Codex URL Vault.app` です。別の場所へ install する場合だけ `CODEX_URL_VAULT_APP_PATH` に app bundle の absolute path を設定してください。
+plugin launcher の既定 app path は `$HOME/Applications/Codex URL Vault.app` です。別の場所へ install する場合だけ `CODEX_URL_VAULT_APP_PATH` に app bundle の absolute path を設定してください。
 
-### Codex plugin のインストール
+### Claude Code plugin
 
-repository identity は `codex-url-vault-native`、installable plugin identity は `codex-url-vault` です。
-
-```bash
-codex plugin marketplace add mlabo-org/codex-url-vault-native --ref main
-codex plugin add codex-url-vault@codex-url-vault-native-marketplace
-```
+repository identity は `codex-url-vault-native`、installable plugin identity は `codex-url-vault` です。Claude Code plugin は `plugin/codex-url-vault/` で、`suzuki-local-plugins` marketplace から読み込みます。source の変更は `claude-plugin-refresh codex-url-vault --execute` で反映し、新しい session で有効になります。
 
 plugin を呼び出す前に native app を build・install してください。plugin launcher は install 済み app 内の native MCP binary を起動するだけで、SQLite 処理や fallback implementation は持ちません。
 
-Codex への依頼例:
+Claude Code への依頼例:
 
 ```text
 Codex URL Vault を開いて
-Codex の中で URL Vault を表示して
+Claude の中で URL Vault を表示して
 保存済み URL から Cloudflare の資料を探して
 この URL を Design カテゴリへ保存して
 ```
 
-`show_vault` は独立した SwiftUI app を開きます。`show_iab_vault` は MCP process 内で random loopback port と session token を使う Viewer を開始し、Codex Browser/IAB 用 URL を返します。
+`show_vault` は独立した SwiftUI app を開きます。`show_iab_vault` は MCP process 内で random loopback port と session token を使う Viewer を開始し、Claude Code の組み込みブラウザペインで開く URL を返します。
 
 ### Browser extension の選択と Native Messaging
 
@@ -194,7 +189,7 @@ build、validation、Git commit、GitHub push、plugin refresh、app installatio
 
 ### Overview
 
-Codex URL Vault Native is a local-first URL library for macOS. It stores URLs, categories, tags, notes, and text snapshots. The SwiftUI app, Rust CLI, Codex MCP server, Codex Browser/IAB Viewer, and Brave/Chrome extensions share the same Rust core and Vault data.
+Codex URL Vault Native is a local-first URL library for macOS. It stores URLs, categories, tags, notes, and text snapshots. The SwiftUI app, Rust CLI, Claude Code MCP server, Claude Code browser-pane Viewer, and Brave/Chrome extensions share the same Rust core and Vault data.
 
 This `codex-url-vault-native` repository is an independent native project. Its installable plugin identity is `codex-url-vault`; it is not a replacement checkout or Git-history continuation of the non-native repository.
 
@@ -210,8 +205,8 @@ This `codex-url-vault-native` repository is an independent native project. Its i
 - Choose `System`, `Rounded`, `Serif`, or `Monospaced` fonts
 - Enter an exact font size from `10–32 pt` or change it in 1 pt steps
 - Persist all display preferences
-- Use task-oriented MCP tools from Codex
-- Open a responsive card viewer inside Codex Browser/IAB
+- Use task-oriented MCP tools from Claude Code
+- Open a responsive card viewer in the Claude Code built-in browser pane
 - Save the current Brave or Chrome tab, or a selected link, through Native Messaging
 - Handle voice- or text-driven “save this URL” requests
 
@@ -223,8 +218,8 @@ Display preferences are available from the application `Settings…` command (`�
 | --- | --- |
 | `url-vault-core` | SQLite schema, search, bookmark HTML compatibility, snapshots, locking, and canonical export |
 | `url-vault-cli` | Machine-readable local CLI |
-| `url-vault-mcp` | Task-oriented stdio MCP server for Codex |
-| `url-vault-viewer` | Token-protected ephemeral localhost IAB Viewer |
+| `url-vault-mcp` | Task-oriented stdio MCP server for Claude Code |
+| `url-vault-viewer` | Token-protected ephemeral localhost Viewer |
 | `url-vault-ffi` | Operation-specific C ABI used by the SwiftUI app |
 | `Codex URL Vault.app` | Native SwiftUI browser/editor |
 | `url-vault-native-host` | Native Messaging bridge/installer between the selected browser and the Rust core |
@@ -238,11 +233,11 @@ Every surface uses `CODEX_URL_VAULT_HOME` when set and otherwise shares `~/.code
 - macOS 14 or later
 - Swift 6.3 toolchain
 - Rust toolchain with Cargo and Rust 2024 edition support
-- Codex CLI or Codex app when using the plugin
+- Claude Code when using the plugin
 - Brave or Google Chrome when using current-page capture
 - Node.js only when running the browser extension validator
 
-The `app-shell-foundation` plugin is a maintenance tool used to generate or update source; it is not a build dependency. The generated `AppShellFoundation.swift` is committed to this repository, so a normal build does not require a Codex plugin cache or a user-specific path.
+The `app-shell-foundation` plugin is a maintenance tool used to generate or update source; it is not a build dependency. The generated `AppShellFoundation.swift` is committed to this repository, so a normal build does not require a plugin cache or a user-specific path.
 
 ### Build
 
@@ -268,16 +263,11 @@ ditto "dist/Codex URL Vault.app" "$HOME/Applications/Codex URL Vault.app"
 open "$HOME/Applications/Codex URL Vault.app"
 ```
 
-The Codex plugin launcher resolves `$HOME/Applications/Codex URL Vault.app` by default. Set `CODEX_URL_VAULT_APP_PATH` to an absolute app-bundle path only when installing elsewhere.
+The plugin launcher resolves `$HOME/Applications/Codex URL Vault.app` by default. Set `CODEX_URL_VAULT_APP_PATH` to an absolute app-bundle path only when installing elsewhere.
 
-### Install the Codex plugin
+### Claude Code plugin
 
-The repository identity is `codex-url-vault-native`; the installable plugin identity is `codex-url-vault`.
-
-```bash
-codex plugin marketplace add mlabo-org/codex-url-vault-native --ref main
-codex plugin add codex-url-vault@codex-url-vault-native-marketplace
-```
+The repository identity is `codex-url-vault-native`; the installable plugin identity is `codex-url-vault`. The Claude Code plugin is `plugin/codex-url-vault/`, loaded from the `suzuki-local-plugins` marketplace. Apply a source change with `claude-plugin-refresh codex-url-vault --execute`, then start a new session.
 
 Build and install the native app before invoking the plugin. The plugin launcher only starts the native MCP binary inside the installed app; it does not implement Vault operations, SQLite access, or a fallback backend.
 
@@ -285,12 +275,12 @@ Example requests:
 
 ```text
 Open Codex URL Vault.
-Show the URL Vault inside Codex.
+Show the URL Vault inside Claude.
 Find my saved Cloudflare references.
 Save this URL in the Design category.
 ```
 
-`show_vault` opens the independent SwiftUI app. `show_iab_vault` starts or reuses a Viewer inside the MCP process, using a random loopback port and session token, and returns a URL for Codex Browser/IAB.
+`show_vault` opens the independent SwiftUI app. `show_iab_vault` starts or reuses a Viewer inside the MCP process, using a random loopback port and session token, and returns a URL to open in the Claude Code built-in browser pane.
 
 ### Choose a browser extension and register Native Messaging
 
