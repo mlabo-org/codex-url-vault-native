@@ -264,8 +264,8 @@
     },
     {
       "leafId": "show-iab-vault",
-      "title": "Start the Codex Browser Vault viewer",
-      "description": "Start or reuse the authenticated localhost Vault viewer and return its URL without navigating Codex Browser.",
+      "title": "Start the browser-pane Vault viewer",
+      "description": "Start or reuse the authenticated localhost Vault viewer and return its URL without navigating the Claude Code browser pane.",
       "executionClass": "server_stateful",
       "runtimeBinding": { "kind": "mcp_tool", "mcpServer": "codex-url-vault", "tool": "show_iab_vault" },
       "authorityRequests": [
@@ -280,11 +280,11 @@
     {
       "leafId": "coordinate-url-vault",
       "title": "Coordinate a URL Vault request",
-      "description": "Interpret one user request, select the exact declared URL Vault MCP leaf, preserve mutation and ambiguity boundaries, and perform a separate Codex Browser navigation only when explicitly requested.",
+      "description": "Interpret one user request, select the exact declared URL Vault MCP leaf, preserve mutation and ambiguity boundaries, and perform a separate Claude Code browser-pane navigation only when explicitly requested.",
       "executionClass": "host_coordinator",
       "runtimeBinding": {
         "kind": "host_coordinator",
-        "instruction": "Follow the public Codex URL Vault skill contract. Route the request to the exact codex-url-vault MCP tool or the checksum-pinned preview/apply sequence. Treat model reasoning as host coordination, never as MCP execution. For show_iab_vault, navigate Codex Browser to the returned viewerUrl only when the request asks for the in-Codex viewer. Preserve every selected leaf's authority requests and stop conditions."
+        "instruction": "Follow the public Codex URL Vault skill contract. Route the request to the exact codex-url-vault MCP tool or the checksum-pinned preview/apply sequence. Treat model reasoning as host coordination, never as MCP execution. For show_iab_vault, open the returned viewerUrl in the Claude Code built-in browser pane (mcp__Claude_Browser__preview_start) only when the request asks for the in-Claude viewer. Preserve every selected leaf's authority requests and stop conditions."
       },
       "authorityRequests": [],
       "artifactRoots": [],
