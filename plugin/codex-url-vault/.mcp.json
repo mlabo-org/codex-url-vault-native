@@ -4,7 +4,7 @@
       "command": "/bin/sh",
       "args": [
         "-c",
-        "cd \"${CLAUDE_PLUGIN_ROOT:-.}\" && exec /bin/sh ./bin/url-vault-mcp-launcher"
+        "if [ -n \"${CLAUDE_PLUGIN_ROOT}\" ]; then cd \"${CLAUDE_PLUGIN_ROOT}\" || exit 1; fi; exec /bin/sh ./bin/url-vault-mcp-launcher"
       ],
       "cwd": "."
     }
