@@ -12,7 +12,9 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 use url::Url;
-use url_vault_core::{ApplyImportInput, SaveUrlInput, UpdateUrlInput, Vault, VaultError};
+use url_vault_core::{
+    AgentHost, ApplyImportInput, SaveUrlInput, UpdateUrlInput, Vault, VaultError,
+};
 
 const INDEX_HTML: &[u8] = include_bytes!("../assets/index.html");
 const STYLES_CSS: &[u8] = include_bytes!("../assets/styles.css");
@@ -21,6 +23,8 @@ const GO_HTML: &[u8] = include_bytes!("../assets/go.html");
 const GO_JS: &[u8] = include_bytes!("../assets/go.js");
 const OPEN_HTML: &[u8] = include_bytes!("../assets/open.html");
 const OPEN_JS: &[u8] = include_bytes!("../assets/open.js");
+/// Placeholder in the HTML assets' `data-agent-host` attribute, replaced per request.
+const AGENT_HOST_PLACEHOLDER: &str = "__AGENT_HOST__";
 const MAX_JSON_BYTES: u64 = 24 * 1024 * 1024;
 const MAX_READER_BYTES: u64 = 3 * 1024 * 1024;
 
@@ -54,11 +58,12 @@ pub enum ViewerError {
 #[derive(Clone)]
 struct ViewerContext {
     vault: Vault,
+    host: AgentHost,
     token: String,
     origin: String,
 }
 
-pub fn start_iab_viewer() -> Result<ViewerInfo, ViewerError> {
+pub fn start_iab_viewer(host: AgentHost) -> Result<ViewerInfo, ViewerError> {
     let mut session = VIEWER_SESSION
         .lock()
         .map_err(|_| ViewerError::Server("viewer session lock is poisoned".to_owned()))?;
@@ -82,6 +87,7 @@ pub fn start_iab_viewer() -> Result<ViewerInfo, ViewerError> {
     };
     let context = ViewerContext {
         vault,
+        host,
         token,
         origin,
     };
@@ -155,15 +161,15 @@ fn route_page(
         return Ok(json_error(405, "method_not_allowed"));
     }
     match path {
-        "/" | "/index.html" => Ok(static_response(INDEX_HTML, "text/html; charset=utf-8")),
+        "/" | "/index.html" => Ok(host_page(INDEX_HTML, context.host)),
         "/styles.css" => Ok(static_response(STYLES_CSS, "text/css; charset=utf-8")),
         "/app.js" => Ok(static_response(APP_JS, "text/javascript; charset=utf-8")),
-        "/go.html" => Ok(static_response(GO_HTML, "text/html; charset=utf-8")),
+        "/go.html" => Ok(host_page(GO_HTML, context.host)),
         "/go.js" => Ok(static_response(GO_JS, "text/javascript; charset=utf-8")),
-        "/open.html" => Ok(static_response(OPEN_HTML, "text/html; charset=utf-8")),
+        "/open.html" => Ok(host_page(OPEN_HTML, context.host)),
         "/open.js" => Ok(static_response(OPEN_JS, "text/javascript; charset=utf-8")),
         "/open-external" => open_external(context, request_url),
-        "/reader" => reader_response(request_url),
+        "/reader" => reader_response(request_url, context.host),
         _ => Ok(json_error(404, "not_found")),
     }
 }
@@ -354,7 +360,7 @@ fn open_external(context: &ViewerContext, request_url: &Url) -> Result<HttpRespo
     ))
 }
 
-fn reader_response(request_url: &Url) -> Result<HttpResponse, ViewerError> {
+fn reader_response(request_url: &Url, host: AgentHost) -> Result<HttpResponse, ViewerError> {
     let target = query_value(request_url, "url")
         .ok_or_else(|| ViewerError::InvalidRequest("missing_url".to_owned()))?;
     let parsed_target =
@@ -396,7 +402,14 @@ fn reader_response(request_url: &Url) -> Result<HttpResponse, ViewerError> {
         extracted.title.as_str()
     };
     let body = if extracted.body.is_empty() {
-        "<p>No readable text was extracted. Use Open IAB or your default browser for the original page.</p>"
+        match host {
+            AgentHost::Codex => {
+                "<p>No readable text was extracted. Use Open IAB or your default browser for the original page.</p>"
+            }
+            AgentHost::ClaudeCode => {
+                "<p>No readable text was extracted. Use Open here or your default browser for the original page.</p>"
+            }
+        }
     } else {
         extracted.body.as_str()
     };
@@ -583,6 +596,12 @@ fn random_token() -> Result<String, ViewerError> {
 
 fn respond(request: Request, response: HttpResponse) -> Result<(), ViewerError> {
     request.respond(response).map_err(ViewerError::Io)
+}
+
+/// Serves an HTML asset with its `data-agent-host` placeholder set to the resolved host.
+fn host_page(body: &[u8], host: AgentHost) -> HttpResponse {
+    let html = String::from_utf8_lossy(body).replace(AGENT_HOST_PLACEHOLDER, host.as_str());
+    response(200, html.into_bytes(), "text/html; charset=utf-8")
 }
 
 fn static_response(body: &[u8], content_type: &str) -> HttpResponse {
@@ -834,6 +853,24 @@ mod tests {
         let token = random_token().expect("session token");
         assert_eq!(token.len(), 64);
         assert!(token.chars().all(|character| character.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn html_pages_carry_resolved_agent_host() {
+        for (host, expected) in [
+            (AgentHost::Codex, "data-agent-host=\"codex\""),
+            (AgentHost::ClaudeCode, "data-agent-host=\"claude_code\""),
+        ] {
+            for page in [INDEX_HTML, GO_HTML, OPEN_HTML] {
+                let mut body = String::new();
+                host_page(page, host)
+                    .into_reader()
+                    .read_to_string(&mut body)
+                    .expect("page body");
+                assert!(body.contains(expected));
+                assert!(!body.contains(AGENT_HOST_PLACEHOLDER));
+            }
+        }
     }
 
     #[test]

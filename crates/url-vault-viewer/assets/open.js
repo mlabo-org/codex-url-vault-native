@@ -9,6 +9,11 @@ const openDirect = document.querySelector("#openDirect");
 const openExternal = document.querySelector("#openExternal");
 const siteFrame = document.querySelector("#siteFrame");
 
+if (document.documentElement.dataset.agentHost === "claude_code") {
+  openDirect.textContent = "Open here";
+  document.querySelector(".frame-notice").textContent =
+    "Reader Preview fetches a simplified local copy. Use Open here or your default browser for the original page.";
+}
 readerTitle.textContent = targetTitle;
 readerUrl.textContent = targetUrl;
 

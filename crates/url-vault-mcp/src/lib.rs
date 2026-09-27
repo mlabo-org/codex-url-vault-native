@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
-use url_vault_core::{Vault, VaultError};
+use url_vault_core::{AgentHost, Vault, VaultError};
 use url_vault_native_host::{SaveCurrentBrowserPageInput, request_save_current_browser_page};
 use url_vault_viewer::start_iab_viewer;
 
@@ -42,20 +42,24 @@ pub fn handle_input(message: &Value) -> Option<Value> {
 
 fn handle_request(message: &Value) -> Option<Value> {
     let id = message.get("id").cloned()?;
+    let host = AgentHost::from_env();
     let method = message
         .get("method")
         .and_then(Value::as_str)
         .unwrap_or_default();
     match method {
-        "initialize" => Some(rpc_result(id, initialize_result(message.get("params")))),
+        "initialize" => Some(rpc_result(
+            id,
+            initialize_result(message.get("params"), host),
+        )),
         "ping" => Some(rpc_result(id, json!({}))),
-        "tools/list" => Some(rpc_result(id, json!({ "tools": tool_records() }))),
-        "tools/call" => Some(handle_tool_call(id, message.get("params"))),
+        "tools/list" => Some(rpc_result(id, json!({ "tools": tool_records(host) }))),
+        "tools/call" => Some(handle_tool_call(id, message.get("params"), host)),
         _ => Some(rpc_error(id, -32601, format!("unknown method: {method}"))),
     }
 }
 
-fn initialize_result(_params: Option<&Value>) -> Value {
+fn initialize_result(_params: Option<&Value>, host: AgentHost) -> Value {
     json!({
         "protocolVersion": MCP_PROTOCOL_VERSION,
         "capabilities": { "tools": { "listChanged": false } },
@@ -64,11 +68,14 @@ fn initialize_result(_params: Option<&Value>) -> Value {
             "title": "Codex URL Vault",
             "version": env!("CARGO_PKG_VERSION")
         },
-        "instructions": "Use task-oriented URL Vault tools. Use save_current_browser_page for requests such as 'save this URL' that refer to the currently focused Brave or Chrome page; pass browser only when the user explicitly identifies it, and never infer the URL from the screen. Suggest before opening vague requests, preserve snapshots only from explicit UTF-8 content, use show_vault for the independent native app, and use show_iab_vault when the user wants the card-based Vault inside Codex Browser/IAB."
+        "instructions": format!(
+            "Use task-oriented URL Vault tools. Use save_current_browser_page for requests such as 'save this URL' that refer to the currently focused Brave or Chrome page; pass browser only when the user explicitly identifies it, and never infer the URL from the screen. Suggest before opening vague requests, preserve snapshots only from explicit UTF-8 content, use show_vault for the independent native app, and use show_iab_vault when the user wants the card-based Vault inside {}.",
+            in_app_browser(host)
+        )
     })
 }
 
-fn handle_tool_call(id: Value, params: Option<&Value>) -> Value {
+fn handle_tool_call(id: Value, params: Option<&Value>, host: AgentHost) -> Value {
     let name = params
         .and_then(|value| value.get("name"))
         .and_then(Value::as_str)
@@ -77,20 +84,21 @@ fn handle_tool_call(id: Value, params: Option<&Value>) -> Value {
         .and_then(|value| value.get("arguments"))
         .cloned()
         .unwrap_or_else(|| json!({}));
-    let result = call_tool(name, &arguments)
+    let result = call_tool(name, &arguments, host)
         .map(tool_success)
         .unwrap_or_else(tool_failure);
     rpc_result(id, result)
 }
 
-fn call_tool(name: &str, arguments: &Value) -> Result<Value, VaultError> {
+fn call_tool(name: &str, arguments: &Value, host: AgentHost) -> Result<Value, VaultError> {
     if name == "show_vault" {
         let app_path = optional_string(arguments, "appPath").map(PathBuf::from);
         return Ok(json!({ "appPath": Vault::show_vault(app_path.as_deref())? }));
     }
     if name == "show_iab_vault" {
-        let viewer = start_iab_viewer()
-            .map_err(|error| VaultError::InvalidInput(format!("IAB viewer: {error}")))?;
+        let viewer = start_iab_viewer(host).map_err(|error| {
+            VaultError::InvalidInput(format!("{} viewer: {error}", in_app_browser(host)))
+        })?;
         return Ok(serde_json::to_value(viewer)?);
     }
     let vault = Vault::from_env()?;
@@ -169,14 +177,33 @@ fn call_tool(name: &str, arguments: &Value) -> Result<Value, VaultError> {
             required_string(arguments, "target")?,
             optional_string(arguments, "browser"),
             optional_bool(arguments, "dryRun").unwrap_or(false),
-            optional_string(arguments, "openedBy").unwrap_or("codex"),
+            optional_string(arguments, "openedBy").unwrap_or(host.as_str()),
             optional_string(arguments, "context"),
         )?)?),
         _ => Err(VaultError::InvalidInput(format!("unknown tool: {name}"))),
     }
 }
 
-fn tool_records() -> Vec<Value> {
+/// Agent-facing name of the host's in-app browser that opens the viewer URL.
+fn in_app_browser(host: AgentHost) -> &'static str {
+    match host {
+        AgentHost::Codex => "Codex Browser/IAB",
+        AgentHost::ClaudeCode => "the Claude Code built-in browser pane",
+    }
+}
+
+fn show_iab_vault_description(host: AgentHost) -> &'static str {
+    match host {
+        AgentHost::Codex => {
+            "Start or reuse the authenticated localhost card-based Vault viewer and return its viewerUrl. Open that URL with Codex Browser/IAB; this tool does not navigate the browser itself."
+        }
+        AgentHost::ClaudeCode => {
+            "Start or reuse the authenticated localhost card-based Vault viewer and return its viewerUrl. Open that URL in the Claude Code built-in browser pane with mcp__Claude_Browser__preview_start (url) or mcp__Claude_Browser__navigate; this tool does not navigate the browser itself."
+        }
+    }
+}
+
+fn tool_records(host: AgentHost) -> Vec<Value> {
     vec![
         tool(
             "search_urls",
@@ -337,9 +364,12 @@ fn tool_records() -> Vec<Value> {
         ),
         tool(
             "show_iab_vault",
-            "Start or reuse the authenticated localhost card-based Vault viewer and return its viewerUrl. Open that URL with Codex Browser/IAB; this tool does not navigate the browser itself.",
+            show_iab_vault_description(host),
             schema(&[], &[]),
-            action_annotations("Show URL Vault in Codex Browser"),
+            action_annotations(match host {
+                AgentHost::Codex => "Show URL Vault in Codex Browser",
+                AgentHost::ClaudeCode => "Show URL Vault in Claude Code browser pane",
+            }),
         ),
     ]
 }
@@ -568,7 +598,7 @@ mod tests {
 
     #[test]
     fn lists_task_oriented_tools_and_annotations() {
-        let tools = tool_records();
+        let tools = tool_records(AgentHost::Codex);
         assert_eq!(tools.len(), 21);
         assert!(tools.iter().any(|tool| tool["name"] == "show_vault"));
         assert!(tools.iter().any(|tool| tool["name"] == "show_iab_vault"));
@@ -608,5 +638,34 @@ mod tests {
         .unwrap();
         assert_eq!(response["result"]["serverInfo"]["name"], "codex-url-vault");
         assert_eq!(response["result"]["protocolVersion"], MCP_PROTOCOL_VERSION);
+    }
+
+    #[test]
+    fn host_selects_agent_facing_browser_wording() {
+        let show_iab = |host| {
+            tool_records(host)
+                .into_iter()
+                .find(|tool| tool["name"] == "show_iab_vault")
+                .unwrap()["description"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        };
+        let codex = initialize_result(None, AgentHost::Codex);
+        assert!(
+            codex["instructions"]
+                .as_str()
+                .unwrap()
+                .ends_with("inside Codex Browser/IAB.")
+        );
+        assert!(show_iab(AgentHost::Codex).contains("Codex Browser/IAB"));
+
+        let claude = initialize_result(None, AgentHost::ClaudeCode);
+        let instructions = claude["instructions"].as_str().unwrap();
+        assert!(instructions.ends_with("inside the Claude Code built-in browser pane."));
+        assert!(!instructions.contains("IAB"));
+        let description = show_iab(AgentHost::ClaudeCode);
+        assert!(description.contains("mcp__Claude_Browser__preview_start"));
+        assert!(!description.contains("Codex"));
     }
 }
