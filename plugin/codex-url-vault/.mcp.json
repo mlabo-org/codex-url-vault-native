@@ -4,8 +4,9 @@
       "command": "/bin/sh",
       "args": [
         "-c",
-        "cd \"${CLAUDE_PLUGIN_ROOT}\" && exec /bin/sh ./bin/url-vault-mcp-launcher"
-      ]
+        "cd \"${CLAUDE_PLUGIN_ROOT:-.}\" && exec /bin/sh ./bin/url-vault-mcp-launcher"
+      ],
+      "cwd": "."
     }
   }
 }

@@ -1,0 +1,20 @@
+{
+  "name": "codex-url-vault-native-marketplace",
+  "interface": {
+    "displayName": "Codex URL Vault Native"
+  },
+  "plugins": [
+    {
+      "name": "codex-url-vault",
+      "source": {
+        "source": "local",
+        "path": "./plugin/codex-url-vault"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
