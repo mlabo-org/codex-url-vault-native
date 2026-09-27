@@ -32,3 +32,9 @@ url = "2.5.8"
 
 [workspace.lints.clippy]
 pedantic = "warn"
+
+# Apple ld-27037 corrupts stripped proc-macro dylibs (dlopen: "mis-aligned
+# LINKEDIT string pool"), so build scripts and proc macros stay unstripped.
+# Shipped binaries are unaffected.
+[profile.release.build-override]
+strip = false
