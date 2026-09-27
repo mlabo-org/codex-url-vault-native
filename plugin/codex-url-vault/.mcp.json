@@ -3,9 +3,9 @@
     "codex-url-vault": {
       "command": "/bin/sh",
       "args": [
-        "./bin/url-vault-mcp-launcher"
-      ],
-      "cwd": "."
+        "-c",
+        "cd \"${CLAUDE_PLUGIN_ROOT}\" && exec /bin/sh ./bin/url-vault-mcp-launcher"
+      ]
     }
   }
 }
