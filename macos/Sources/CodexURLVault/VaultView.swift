@@ -1132,9 +1132,9 @@ private struct PromptSamplesView: View {
                     prompt: "Codex URL Vaultのネイティブアプリを開いて。"
                 ),
                 PromptSample(
-                    title: "Codex内でカード表示する",
-                    route: "show_iab_vault → Codex Browser",
-                    prompt: "Codex URL VaultをCodex内のカード表示で開いて。"
+                    title: "エージェント内のブラウザでカード表示する",
+                    route: "show_iab_vault → Codex Browser / Claude Code browser pane",
+                    prompt: "Codex URL Vaultをエージェント内のブラウザでカード表示して。"
                 ),
                 PromptSample(
                     title: "詳細を付けてURLを保存する",
@@ -1175,9 +1175,9 @@ private struct PromptSamplesView: View {
                 prompt: "Open the native Codex URL Vault app."
             ),
             PromptSample(
-                title: "Show the card view inside Codex",
-                route: "show_iab_vault → Codex Browser",
-                prompt: "Open Codex URL Vault as a card view inside Codex."
+                title: "Show the card view in the agent's browser",
+                route: "show_iab_vault → Codex Browser / Claude Code browser pane",
+                prompt: "Open Codex URL Vault as a card view in the agent's in-app browser."
             ),
             PromptSample(
                 title: "Save a URL with details",
@@ -1310,7 +1310,7 @@ struct VaultStrings {
     }
 
     var vault: String { "Codex URL Vault" }
-    var localVaultSubtitle: String { text("Codex用のローカルURL保管庫", "Local URL vault for Codex") }
+    var localVaultSubtitle: String { text("Codex・Claude Code用のローカルURL保管庫", "Local URL vault for Codex and Claude Code") }
     var localURLIndex: String { text("ローカルURL索引", "LOCAL URL INDEX") }
     var allURLs: String { text("すべてのURL", "All URLs") }
     var allBookmarks: String { text("すべてのブックマーク", "All Bookmarks") }
@@ -1352,11 +1352,11 @@ struct VaultStrings {
     var ok: String { "OK" }
     var language: String { text("言語", "Language") }
     var theme: String { text("テーマ", "Theme") }
-    var promptSamples: String { text("Codexへの依頼例", "Example Requests for Codex") }
+    var promptSamples: String { text("Codex・Claude Codeへの依頼例", "Example Requests for Codex and Claude Code") }
     var promptSamplesHelp: String {
         text(
-            "Codexには自然な言葉で依頼できます。スキル呼び出し記法やMCPツール名の入力は不要です。各例には、プラグインが内部で選ぶ主なMCPルートを併記しています。",
-            "Ask Codex in natural language. You do not need to enter a skill invocation or MCP tool name. Each example also shows the main MCP route the plugin selects internally."
+            "CodexやClaude Codeには自然な言葉で依頼できます。スキル呼び出し記法やMCPツール名の入力は不要です。各例には、プラグインが内部で選ぶ主なMCPルートを併記しています。",
+            "Ask Codex or Claude Code in natural language. You do not need to enter a skill invocation or MCP tool name. Each example also shows the main MCP route the plugin selects internally."
         )
     }
     var mcpRoute: String { text("主なMCP", "Primary MCP") }

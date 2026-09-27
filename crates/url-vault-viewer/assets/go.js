@@ -4,6 +4,9 @@ const targetTitle = params.get("title") || targetUrl || "Bookmark";
 const rid = params.get("rid") || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 const launchKey = `bookmarkVaultLaunch:${rid}`;
 
+if (document.documentElement.dataset.agentHost === "claude_code") {
+  document.querySelector(".eyebrow").textContent = "Opening Here";
+}
 document.querySelector("#launchTitle").textContent = targetTitle;
 document.querySelector("#launchUrl").textContent = targetUrl;
 

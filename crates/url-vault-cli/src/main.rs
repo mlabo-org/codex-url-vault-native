@@ -4,7 +4,8 @@ use std::path::PathBuf;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde::Serialize;
 use url_vault_core::{
-    ApplyImportInput, SaveSnapshotInput, SaveUrlInput, UpdateUrlInput, Vault, VaultError,
+    AgentHost, ApplyImportInput, SaveSnapshotInput, SaveUrlInput, UpdateUrlInput, Vault,
+    VaultError,
 };
 
 #[derive(Debug, Parser)]
@@ -61,8 +62,9 @@ struct AddArgs {
     aliases: Option<String>,
     #[arg(long)]
     intents: Option<String>,
-    #[arg(long, default_value = "codex_capture")]
-    source_type: String,
+    /// Defaults to the resolved agent host's capture type (`codex_capture` or `claude_code_capture`).
+    #[arg(long)]
+    source_type: Option<String>,
     #[arg(long)]
     source_browser: Option<String>,
     #[arg(long)]
@@ -174,8 +176,9 @@ struct OpenArgs {
     target: String,
     #[arg(long, value_enum, default_value_t = Browser::Default)]
     browser: Browser,
-    #[arg(long, default_value = "codex")]
-    opened_by: String,
+    /// Defaults to the resolved agent host (`codex` or `claude_code`).
+    #[arg(long)]
+    opened_by: Option<String>,
     #[arg(long)]
     context: Option<String>,
     #[arg(long)]
@@ -316,7 +319,9 @@ fn run() -> Result<(), VaultError> {
                 tags: parse_list(args.tags.as_deref()),
                 aliases: parse_list(args.aliases.as_deref()),
                 intents: parse_list(args.intents.as_deref()),
-                source_type: Some(args.source_type),
+                source_type: Some(args.source_type.unwrap_or_else(|| {
+                    AgentHost::from_env().capture_source_type().to_owned()
+                })),
                 source_browser: args.source_browser,
                 source_profile: args.source_profile,
                 folder_path: args.folder_path,
@@ -386,7 +391,9 @@ fn run() -> Result<(), VaultError> {
                 &args.target,
                 Some(args.browser.as_str()),
                 args.dry_run,
-                &args.opened_by,
+                args.opened_by
+                    .as_deref()
+                    .unwrap_or(AgentHost::from_env().as_str()),
                 args.context.as_deref(),
             )?,
             args.json,

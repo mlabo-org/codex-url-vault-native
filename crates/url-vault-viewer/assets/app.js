@@ -63,6 +63,7 @@ const LEGACY_THEME_KEY = "bookmarkVaultTheme";
 const THEMES = ["system", "light", "dark"];
 const LANGUAGES = ["system", "ja", "en"];
 const MAX_IMPORT_FILE_BYTES = 20 * 1024 * 1024;
+const AGENT_HOST = document.documentElement.dataset.agentHost === "claude_code" ? "claude_code" : "codex";
 let editingCategoryPath = null;
 const importState = {
   step: 1,
@@ -326,6 +327,23 @@ const MESSAGES = {
     unfiled: "Unfiled",
   },
 };
+const HOST_MESSAGES = {
+  codex: { ja: {}, en: {} },
+  claude_code: {
+    ja: {
+      brandSubtitle: "Claude Code用のローカルURL保管庫",
+      promptSamples: "Claude Codeへの依頼例",
+      promptSamplesHelp: "Claude Codeには自然な言葉で依頼できます。スキル呼び出し記法やMCPツール名の入力は不要です。各例には、プラグインが内部で選ぶ主なMCPルートを併記しています。",
+      iab: "ここで開く",
+    },
+    en: {
+      brandSubtitle: "Local URL preservation for Claude Code",
+      promptSamples: "Example requests for Claude Code",
+      promptSamplesHelp: "Ask Claude Code in natural language. You do not need to enter a skill invocation or MCP tool name. Each example also shows the main MCP route the plugin selects internally.",
+      iab: "Open here",
+    },
+  },
+};
 let preferences = readPreferences();
 const PROMPT_SAMPLES = [
   {
@@ -333,11 +351,17 @@ const PROMPT_SAMPLES = [
     route: "show_vault",
     prompt: { ja: "Codex URL Vaultのネイティブアプリを開いて。", en: "Open the native Codex URL Vault app." },
   },
-  {
-    title: { ja: "Codex内でカード表示する", en: "Show the card view inside Codex" },
-    route: "show_iab_vault → Codex Browser",
-    prompt: { ja: "Codex URL VaultをCodex内のカード表示で開いて。", en: "Open Codex URL Vault as a card view inside Codex." },
-  },
+  AGENT_HOST === "claude_code"
+    ? {
+      title: { ja: "Claude Codeのブラウザペインでカード表示する", en: "Show the card view in the Claude Code browser pane" },
+      route: "show_iab_vault → Claude Code browser pane",
+      prompt: { ja: "Codex URL VaultをClaude Codeのブラウザペインでカード表示して。", en: "Open Codex URL Vault as a card view in the Claude Code browser pane." },
+    }
+    : {
+      title: { ja: "Codex内でカード表示する", en: "Show the card view inside Codex" },
+      route: "show_iab_vault → Codex Browser",
+      prompt: { ja: "Codex URL VaultをCodex内のカード表示で開いて。", en: "Open Codex URL Vault as a card view inside Codex." },
+    },
   {
     title: { ja: "詳細を付けてURLを保存する", en: "Save a URL with details" },
     route: "save_url",
@@ -432,7 +456,7 @@ function resolvedLanguage() {
 
 function t(key) {
   const language = resolvedLanguage();
-  return MESSAGES[language][key] || MESSAGES.en[key] || key;
+  return HOST_MESSAGES[AGENT_HOST][language][key] || MESSAGES[language][key] || MESSAGES.en[key] || key;
 }
 
 function persistPreferences() {
@@ -1081,7 +1105,7 @@ function dialogPayload() {
     tags: document.querySelector("#bookmarkTags").value.trim(),
     intents: document.querySelector("#bookmarkIntents").value.trim(),
     note: document.querySelector("#bookmarkNote").value.trim(),
-    source_type: "codex_capture",
+    source_type: `${AGENT_HOST}_capture`,
   };
 }
 
