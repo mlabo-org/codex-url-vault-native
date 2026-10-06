@@ -105,7 +105,7 @@ codex plugin marketplace add mlabo-org/codex-url-vault-native --ref main
 codex plugin add codex-url-vault@codex-url-vault-native-marketplace
 ```
 
-Claude Code では同じ `plugin/codex-url-vault/` を `suzuki-local-plugins` marketplace から読み込みます。source の変更は `claude-plugin-refresh codex-url-vault --execute` で反映し、新しい session で有効になります。
+Claude Code では同じ `plugin/codex-url-vault/` を `suzuki-local-plugins` marketplace から読み込みます。source の変更は `~/.claude/local-plugins/bin/claude-plugin-refresh codex-url-vault --execute` で反映し、新しい session で有効になります。
 
 plugin を呼び出す前に native app を build・install してください。plugin launcher は install 済み app 内の native MCP binary を起動するだけで、SQLite 処理や fallback implementation は持ちません。
 
@@ -281,7 +281,7 @@ codex plugin marketplace add mlabo-org/codex-url-vault-native --ref main
 codex plugin add codex-url-vault@codex-url-vault-native-marketplace
 ```
 
-In Claude Code, the same `plugin/codex-url-vault/` is loaded from the `suzuki-local-plugins` marketplace. Apply a source change with `claude-plugin-refresh codex-url-vault --execute`, then start a new session.
+In Claude Code, the same `plugin/codex-url-vault/` is loaded from the `suzuki-local-plugins` marketplace. Apply a source change with `~/.claude/local-plugins/bin/claude-plugin-refresh codex-url-vault --execute`, then start a new session.
 
 Build and install the native app before invoking the plugin. The plugin launcher only starts the native MCP binary inside the installed app; it does not implement Vault operations, SQLite access, or a fallback backend.
 
