@@ -101,12 +101,20 @@ fn call_tool(name: &str, arguments: &Value, host: AgentHost) -> Result<Value, Va
         })?;
         return Ok(serde_json::to_value(viewer)?);
     }
-    let vault = Vault::from_env()?;
+    call_vault_tool(&Vault::from_env()?, name, arguments, host)
+}
+
+fn call_vault_tool(
+    vault: &Vault,
+    name: &str,
+    arguments: &Value,
+    host: AgentHost,
+) -> Result<Value, VaultError> {
     match name {
-        "search_urls" => Ok(serde_json::to_value(vault.search_urls(
+        "search_urls" => Ok(json!({ "bookmarks": vault.search_urls(
             required_string(arguments, "query")?,
             optional_usize(arguments, "limit").unwrap_or(10),
-        )?)?),
+        )? })),
         "suggest_urls" => Ok(serde_json::to_value(vault.suggest_urls(
             required_string(arguments, "query")?,
             optional_usize(arguments, "limit").unwrap_or(5),
@@ -114,11 +122,11 @@ fn call_tool(name: &str, arguments: &Value, host: AgentHost) -> Result<Value, Va
         "get_url" => Ok(serde_json::to_value(
             vault.get_url(required_string(arguments, "target")?)?,
         )?),
-        "list_urls" => Ok(serde_json::to_value(vault.list_urls(
+        "list_urls" => Ok(json!({ "bookmarks": vault.list_urls(
             optional_string(arguments, "category"),
             optional_usize(arguments, "limit"),
-        )?)?),
-        "list_categories" => Ok(serde_json::to_value(vault.list_categories()?)?),
+        )? })),
+        "list_categories" => Ok(json!({ "categories": vault.list_categories()? })),
         "get_snapshot" => Ok(serde_json::to_value(
             vault.get_snapshot(required_string(arguments, "target")?)?,
         )?),
@@ -129,7 +137,7 @@ fn call_tool(name: &str, arguments: &Value, host: AgentHost) -> Result<Value, Va
             vault.save_url(from_value(arguments)?)?,
         )?),
         "save_current_browser_page" => request_save_current_browser_page(
-            &vault,
+            vault,
             from_value::<SaveCurrentBrowserPageInput>(arguments)?,
         )
         .map_err(|error| VaultError::InvalidInput(error.to_string())),
@@ -538,7 +546,14 @@ fn action_annotations(title: &str) -> Value {
     })
 }
 
+/// MCP requires `structuredContent` to be a JSON object, so every tool result
+/// must already be one; list tools wrap their arrays in `call_vault_tool`.
 fn tool_success(value: Value) -> Value {
+    if !value.is_object() {
+        return tool_failure(VaultError::InvalidInput(
+            "tool result must be a JSON object".to_owned(),
+        ));
+    }
     json!({
         "content": [{ "type": "text", "text": serde_json::to_string_pretty(&value).unwrap_or_default() }],
         "structuredContent": value,
@@ -625,6 +640,43 @@ mod tests {
                 .unwrap()["annotations"]["destructiveHint"],
             true
         );
+    }
+
+    #[test]
+    fn list_tools_return_object_structured_content() {
+        let home = tempfile::tempdir().expect("temporary Vault");
+        let vault = Vault::at(home.path()).expect("Vault");
+        vault.init().expect("initialize Vault");
+        call_vault_tool(
+            &vault,
+            "save_url",
+            &json!({ "url": "https://example.test/mlabo", "folderPath": "mlabo" }),
+            AgentHost::ClaudeCode,
+        )
+        .expect("save URL");
+
+        for (name, arguments, key) in [
+            ("search_urls", json!({ "query": "mlabo" }), "bookmarks"),
+            ("list_urls", json!({}), "bookmarks"),
+            ("list_categories", json!({}), "categories"),
+        ] {
+            let result = tool_success(
+                call_vault_tool(&vault, name, &arguments, AgentHost::ClaudeCode).expect(name),
+            );
+            assert_eq!(result["isError"], false, "{name}");
+            let structured = &result["structuredContent"];
+            assert!(structured.is_object(), "{name}");
+            assert!(!structured[key].as_array().expect(key).is_empty(), "{name}");
+            let text = result["content"][0]["text"].as_str().unwrap();
+            assert_eq!(&serde_json::from_str::<Value>(text).unwrap(), structured);
+        }
+    }
+
+    #[test]
+    fn rejects_non_object_tool_results() {
+        let result = tool_success(json!([]));
+        assert_eq!(result["isError"], true);
+        assert!(result.get("structuredContent").is_none());
     }
 
     #[test]
