@@ -84,7 +84,7 @@ impl Vault {
 
     pub fn list_urls(&self, category: Option<&str>, limit: Option<usize>) -> Result<Vec<Bookmark>> {
         let bookmarks = self.query_urls(category, limit)?;
-        self.verify_bookmark_snapshots(bookmarks, false)
+        self.inspect_bookmark_snapshots(bookmarks, false)
     }
 
     fn query_urls(&self, category: Option<&str>, limit: Option<usize>) -> Result<Vec<Bookmark>> {
@@ -716,7 +716,7 @@ impl Vault {
 
     pub fn get_snapshot(&self, target: &str) -> Result<SnapshotPayload> {
         let bookmark = self.get_url(target)?;
-        let snapshot = self.verify_one_snapshot(&bookmark.id, true)?;
+        let snapshot = self.inspect_one_snapshot(&bookmark.id, true)?;
         Ok(SnapshotPayload {
             bookmark: BookmarkIdentity {
                 id: bookmark.id,
@@ -739,7 +739,7 @@ impl Vault {
         let mut results = Vec::new();
         let mut valid = 0;
         for bookmark in bookmarks {
-            let snapshot = self.verify_one_snapshot(&bookmark.id, false)?;
+            let snapshot = self.verify_one_snapshot(&bookmark.id)?;
             if snapshot
                 .as_ref()
                 .is_some_and(|snapshot| snapshot.status == "valid")
@@ -975,17 +975,17 @@ impl Vault {
 
     fn list_urls_with_snapshot_content(&self) -> Result<Vec<Bookmark>> {
         let bookmarks = self.query_urls(None, None)?;
-        self.verify_bookmark_snapshots(bookmarks, true)
+        self.inspect_bookmark_snapshots(bookmarks, true)
     }
 
-    fn verify_bookmark_snapshots(
+    fn inspect_bookmark_snapshots(
         &self,
         mut bookmarks: Vec<Bookmark>,
         include_content: bool,
     ) -> Result<Vec<Bookmark>> {
         for bookmark in &mut bookmarks {
             if bookmark.snapshot.is_some() {
-                bookmark.snapshot = self.verify_one_snapshot(&bookmark.id, include_content)?;
+                bookmark.snapshot = self.inspect_one_snapshot(&bookmark.id, include_content)?;
             }
         }
         Ok(bookmarks)
@@ -1030,7 +1030,9 @@ impl Vault {
         ))
     }
 
-    fn verify_one_snapshot(
+    /// Check a snapshot artifact for a read: the result reports its current
+    /// state, but the stored verification fields are left unchanged.
+    fn inspect_one_snapshot(
         &self,
         bookmark_id: &str,
         include_content: bool,
@@ -1038,29 +1040,21 @@ impl Vault {
         let _guard = self.mutation_guard()?;
         let conn = self.raw_connection()?;
         self.recover_export_locked(&conn)?;
-        let metadata = conn
-            .query_row(
-                r#"
-                SELECT artifact_path, content_sha256, kind, title, captured_at, byte_count
-                  FROM snapshots WHERE bookmark_id = ?1
-                "#,
-                [bookmark_id],
-                |row| {
-                    Ok(SnapshotMetadata {
-                        artifact_path: row.get(0)?,
-                        content_sha256: row.get(1)?,
-                        kind: row.get(2)?,
-                        title: row.get(3)?,
-                        captured_at: row.get(4)?,
-                        byte_count: row.get(5)?,
-                    })
-                },
-            )
-            .optional()?;
-        let Some(metadata) = metadata else {
+        inspect_stored_snapshot(&self.home, &conn, bookmark_id, include_content)
+    }
+
+    /// Check a snapshot artifact and record the outcome; only the explicit
+    /// verify_snapshots operation writes verification state.
+    fn verify_one_snapshot(&self, bookmark_id: &str) -> Result<Option<Snapshot>> {
+        let _guard = self.mutation_guard()?;
+        let conn = self.raw_connection()?;
+        self.recover_export_locked(&conn)?;
+        // Read the content so the stored copy stays in sync with the artifact;
+        // the returned result omits it like other non-content reads.
+        let Some(mut snapshot) = inspect_stored_snapshot(&self.home, &conn, bookmark_id, true)?
+        else {
             return Ok(None);
         };
-        let snapshot = inspect_snapshot(&self.home, bookmark_id, &metadata, include_content)?;
         conn.execute(
             r#"
             UPDATE snapshots
@@ -1074,6 +1068,7 @@ impl Vault {
                 bookmark_id
             ],
         )?;
+        snapshot.content = None;
         Ok(Some(snapshot))
     }
 
@@ -1470,6 +1465,37 @@ fn upsert_snapshot_reference(
         ],
     )?;
     Ok(snapshot)
+}
+
+fn inspect_stored_snapshot(
+    home: &Path,
+    conn: &Connection,
+    bookmark_id: &str,
+    include_content: bool,
+) -> Result<Option<Snapshot>> {
+    let metadata = conn
+        .query_row(
+            r#"
+            SELECT artifact_path, content_sha256, kind, title, captured_at, byte_count
+              FROM snapshots WHERE bookmark_id = ?1
+            "#,
+            [bookmark_id],
+            |row| {
+                Ok(SnapshotMetadata {
+                    artifact_path: row.get(0)?,
+                    content_sha256: row.get(1)?,
+                    kind: row.get(2)?,
+                    title: row.get(3)?,
+                    captured_at: row.get(4)?,
+                    byte_count: row.get(5)?,
+                })
+            },
+        )
+        .optional()?;
+    let Some(metadata) = metadata else {
+        return Ok(None);
+    };
+    inspect_snapshot(home, bookmark_id, &metadata, include_content).map(Some)
 }
 
 fn inspect_snapshot(

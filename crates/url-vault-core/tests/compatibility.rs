@@ -160,6 +160,49 @@ fn verified_snapshot_text_is_searchable_but_not_exposed_by_list_or_search() {
 }
 
 #[test]
+fn reads_leave_the_database_unchanged_and_verify_keeps_stored_content() {
+    let (home, vault) = vault();
+    let id = save(&vault, "https://example.test/read-only", "Read only", "");
+    let content = "# Stored meaning\n\ncobalt-juniper stays put.\n";
+    vault
+        .save_snapshot(SaveSnapshotInput {
+            target: id.clone(),
+            content: content.to_owned(),
+            kind: "semantic".to_owned(),
+            title: None,
+            captured_at: Some("2026-07-30T00:00:00Z".to_owned()),
+        })
+        .expect("save snapshot");
+    let db_path = home.path().join("vault.sqlite");
+    let before = fs::read(&db_path).expect("read database");
+
+    assert_eq!(
+        vault.search_urls("cobalt-juniper", 5).expect("search")[0].id,
+        id
+    );
+    vault.suggest_urls("cobalt-juniper", 5).expect("suggest");
+    vault.list_urls(None, None).expect("list");
+    vault.get_snapshot(&id).expect("snapshot");
+    assert!(fs::read(&db_path).expect("read database") == before);
+
+    let verification = vault.verify_snapshots(None).expect("verify");
+    assert_eq!((verification.checked, verification.valid), (1, 1));
+    assert_eq!(
+        verification.results[0].snapshot.as_ref().unwrap().content,
+        None
+    );
+    let stored: Option<String> = rusqlite::Connection::open(&db_path)
+        .expect("open database")
+        .query_row(
+            "SELECT content_text FROM snapshots WHERE bookmark_id = ?1",
+            [&id],
+            |row| row.get(0),
+        )
+        .expect("stored snapshot");
+    assert_eq!(stored.as_deref(), Some(content));
+}
+
+#[test]
 fn archiving_a_category_moves_bookmarks_to_unfiled() {
     let (_home, vault) = vault();
     save(
@@ -185,9 +228,14 @@ fn deleting_a_url_removes_its_record_and_canonical_html_entry() {
     let deleted = vault.delete_url(&id).expect("delete URL");
 
     assert_eq!(deleted.item.id, id);
-    assert!(vault.list_urls(None, None).expect("list after delete").is_empty());
-    let connection = rusqlite::Connection::open(home.path().join("vault.sqlite"))
-        .expect("open Vault database");
+    assert!(
+        vault
+            .list_urls(None, None)
+            .expect("list after delete")
+            .is_empty()
+    );
+    let connection =
+        rusqlite::Connection::open(home.path().join("vault.sqlite")).expect("open Vault database");
     let record_count: i64 = connection
         .query_row(
             "SELECT COUNT(*) FROM bookmarks WHERE id = ?1",
