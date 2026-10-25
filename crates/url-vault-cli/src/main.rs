@@ -390,6 +390,7 @@ fn run() -> Result<(), VaultError> {
             &vault.open_url(
                 &args.target,
                 Some(args.browser.as_str()),
+                false,
                 args.dry_run,
                 args.opened_by
                     .as_deref()

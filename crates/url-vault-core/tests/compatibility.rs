@@ -259,7 +259,7 @@ fn opening_by_exact_bookmark_id_does_not_fall_back_to_fuzzy_search() {
     );
 
     let result = vault
-        .open_url(&id, None, true, "test", None)
+        .open_url(&id, None, false, true, "test", None)
         .expect("open exact bookmark id");
 
     assert_eq!(result.url, "https://example.test/open-by-id");

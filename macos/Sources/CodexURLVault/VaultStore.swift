@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import Foundation
 
@@ -177,12 +178,31 @@ final class VaultStore: ObservableObject {
         }
     }
 
-    func open(_ bookmark: VaultBookmark) {
+    func open(_ bookmark: VaultBookmark, sameTab: Bool = false) {
         do {
-            _ = try RustVaultBridge.openURL(target: bookmark.id)
+            // Replacing the current tab needs a concrete browser to script, so the
+            // system default is resolved here unless the bookmark names its own.
+            let browser = sameTab && (bookmark.preferredBrowser ?? "default") == "default"
+                ? Self.defaultBrowserPolicy()
+                : nil
+            _ = try RustVaultBridge.openURL(target: bookmark.id, browser: browser, sameTab: sameTab)
             try reload()
         } catch {
             fail(error)
+        }
+    }
+
+    private static func defaultBrowserPolicy() -> String? {
+        guard let probe = URL(string: "https://example.com"),
+              let app = NSWorkspace.shared.urlForApplication(toOpen: probe),
+              let bundleID = Bundle(url: app)?.bundleIdentifier?.lowercased()
+        else { return nil }
+        switch bundleID {
+        case "com.brave.browser": return "brave"
+        case "com.google.chrome": return "chrome"
+        case "com.apple.safari": return "safari"
+        case "org.mozilla.firefox": return "firefox"
+        default: return bundleID
         }
     }
 

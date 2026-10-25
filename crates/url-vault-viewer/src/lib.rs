@@ -347,6 +347,7 @@ fn open_external(context: &ViewerContext, request_url: &Url) -> Result<HttpRespo
         &target,
         Some("default"),
         false,
+        false,
         "iab_viewer",
         Some("external"),
     )?;

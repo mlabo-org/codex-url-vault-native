@@ -184,6 +184,7 @@ fn call_vault_tool(
         "open_url" => Ok(serde_json::to_value(vault.open_url(
             required_string(arguments, "target")?,
             optional_string(arguments, "browser"),
+            false,
             optional_bool(arguments, "dryRun").unwrap_or(false),
             optional_string(arguments, "openedBy").unwrap_or(host.as_str()),
             optional_string(arguments, "context"),

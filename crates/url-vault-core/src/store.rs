@@ -767,6 +767,7 @@ impl Vault {
         &self,
         target: &str,
         browser: Option<&str>,
+        same_tab: bool,
         dry_run: bool,
         opened_by: &str,
         context: Option<&str>,
@@ -802,8 +803,15 @@ impl Vault {
         let selected = normalize_browser_policy(
             browser.or_else(|| bookmark.as_ref()?.preferred_browser.as_deref()),
         );
+        if same_tab {
+            same_tab_script(&selected)?;
+        }
         if !dry_run {
-            launch_url(&url, &selected)?;
+            if same_tab {
+                launch_url_in_current_tab(&url, &selected)?;
+            } else {
+                launch_url(&url, &selected)?;
+            }
         }
         self.record_open(
             bookmark.as_ref().map(|value| value.id.as_str()),
@@ -1804,6 +1812,54 @@ fn launch_url(url: &str, browser: &str) -> Result<()> {
     }
 }
 
+/// AppleScript that replaces the URL of the front window's current tab, creating
+/// a window first when the browser has none. The application name must be a
+/// literal so its scripting terms compile; the URL arrives as argv so it is
+/// never interpolated into the script.
+fn same_tab_script(browser: &str) -> Result<String> {
+    let (app, new_window, current_tab) = match browser {
+        "brave" => ("Brave Browser", "make new window", "active tab"),
+        "chrome" => ("Google Chrome", "make new window", "active tab"),
+        "safari" => ("Safari", "make new document", "current tab"),
+        "default" => {
+            return Err(VaultError::InvalidInput(
+                "opening in the current tab needs a concrete browser, not the system default"
+                    .to_owned(),
+            ));
+        }
+        _ => {
+            return Err(VaultError::InvalidInput(format!(
+                "{browser} cannot open a URL in the current tab"
+            )));
+        }
+    };
+    Ok(format!(
+        r#"on run argv
+    tell application "{app}"
+        if (count of windows) = 0 then {new_window}
+        set URL of {current_tab} of front window to (item 1 of argv)
+        activate
+    end tell
+end run"#
+    ))
+}
+
+fn launch_url_in_current_tab(url: &str, browser: &str) -> Result<()> {
+    let output = Command::new("/usr/bin/osascript")
+        .arg("-e")
+        .arg(same_tab_script(browser)?)
+        .arg(url)
+        .output()?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(VaultError::InvalidInput(format!(
+            "could not open the URL in the current {browser} tab: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )))
+    }
+}
+
 fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     let parent = path.parent().ok_or_else(|| {
         VaultError::InvalidInput(format!("path has no parent: {}", path.display()))
@@ -1866,10 +1922,24 @@ mod path_tests {
         vault.init().expect("initialize Vault");
 
         vault
-            .open_url("https://example.test/repeated", None, true, "test", None)
+            .open_url(
+                "https://example.test/repeated",
+                None,
+                false,
+                true,
+                "test",
+                None,
+            )
             .expect("first open");
         vault
-            .open_url("https://example.test/repeated", None, true, "test", None)
+            .open_url(
+                "https://example.test/repeated",
+                None,
+                false,
+                true,
+                "test",
+                None,
+            )
             .expect("second open");
 
         let connection = vault.connection().expect("open database");
@@ -1881,5 +1951,27 @@ mod path_tests {
             )
             .expect("count opens");
         assert_eq!((count, distinct), (2, 2));
+    }
+
+    #[test]
+    fn same_tab_open_requires_a_scriptable_browser() {
+        let home = tempfile::tempdir().expect("temporary Vault");
+        let vault = Vault::at(home.path()).expect("Vault");
+        vault.init().expect("initialize Vault");
+        let url = "https://example.test/same-tab";
+
+        for browser in ["default", "firefox"] {
+            assert!(
+                vault
+                    .open_url(url, Some(browser), true, true, "test", None)
+                    .is_err(),
+                "{browser} must reject a current-tab open"
+            );
+        }
+        for browser in ["brave", "chrome", "safari"] {
+            vault
+                .open_url(url, Some(browser), true, true, "test", None)
+                .expect("scriptable browser accepts a current-tab open");
+        }
     }
 }

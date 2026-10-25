@@ -291,6 +291,7 @@ pub extern "C" fn url_vault_open_url(
     home: *const c_char,
     target: *const c_char,
     browser: *const c_char,
+    same_tab: bool,
     dry_run: bool,
 ) -> *mut c_char {
     response(|| {
@@ -299,6 +300,7 @@ pub extern "C" fn url_vault_open_url(
             .open_url(
                 &required_string(target, "target")?,
                 browser.as_deref(),
+                same_tab,
                 dry_run,
                 "native_app",
                 None,

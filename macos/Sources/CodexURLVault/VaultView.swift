@@ -310,6 +310,7 @@ private struct VaultMainContent: View {
                                 strings: strings,
                                 palette: palette,
                                 open: { store.open(bookmark) },
+                                openInSameTab: { store.open(bookmark, sameTab: true) },
                                 showSnapshot: { snapshotBookmark = bookmark },
                                 edit: { editingBookmark = bookmark }
                             )
@@ -447,6 +448,7 @@ private struct BookmarkCard: View {
     let strings: VaultStrings
     let palette: VaultPalette
     let open: () -> Void
+    let openInSameTab: () -> Void
     let showSnapshot: () -> Void
     let edit: () -> Void
 
@@ -503,10 +505,16 @@ private struct BookmarkCard: View {
 
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 7) {
-                    cardActions
+                    openActions
+                    otherActions
                 }
                 VStack(alignment: .leading, spacing: 7) {
-                    cardActions
+                    HStack(spacing: 7) { openActions }
+                    HStack(spacing: 7) { otherActions }
+                }
+                VStack(alignment: .leading, spacing: 7) {
+                    openActions
+                    otherActions
                 }
             }
         }
@@ -518,16 +526,26 @@ private struct BookmarkCard: View {
                 .stroke(palette.border)
         }
         .contextMenu {
-            Button(strings.open, action: open)
+            Button(strings.openInNewTab, action: open)
+            Button(strings.openInSameTab, action: openInSameTab)
             Button(strings.edit, action: edit)
         }
     }
 
     @ViewBuilder
-    private var cardActions: some View {
-        Button(strings.open, action: open)
+    private var openActions: some View {
+        Button(strings.openInNewTab, action: open)
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
+            .help(strings.openInNewTabHelp)
+        Button(strings.openInSameTab, action: openInSameTab)
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .help(strings.openInSameTabHelp)
+    }
+
+    @ViewBuilder
+    private var otherActions: some View {
         if bookmark.snapshot != nil {
             Button(strings.savedSnapshot, action: showSnapshot)
                 .buttonStyle(.bordered)
@@ -1329,7 +1347,10 @@ struct VaultStrings {
     var noBookmarksHint: String { text("URLを追加するか、ブラウザから読み込んでください。", "Add a URL or import browser bookmarks.") }
     var noSearchResults: String { text("一致するURLがありません", "No Matching URLs") }
     var noSearchResultsHint: String { text("検索語を変えてください。", "Try another search.") }
-    var open: String { text("開く", "Open") }
+    var openInNewTab: String { text("新しいタブ", "New Tab") }
+    var openInSameTab: String { text("このタブ", "This Tab") }
+    var openInNewTabHelp: String { text("ブラウザーの新しいタブで開く", "Open in a new browser tab") }
+    var openInSameTabHelp: String { text("ブラウザーで今見ているタブを置き換えて開く", "Replace the browser's current tab") }
     var archive: String { text("アーカイブ", "Archive") }
     var archiveURLTitle: String { text("このURLをアーカイブしますか？", "Archive this URL?") }
     var deleteURL: String { text("削除", "Delete") }

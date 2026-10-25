@@ -86,6 +86,7 @@ private func ffiOpenURL(
     _ home: UnsafePointer<CChar>?,
     _ target: UnsafePointer<CChar>?,
     _ browser: UnsafePointer<CChar>?,
+    _ sameTab: Bool,
     _ dryRun: Bool
 ) -> UnsafeMutablePointer<CChar>?
 
@@ -242,14 +243,18 @@ enum RustVaultBridge {
         }
     }
 
-    static func openURL(target: String, browser: String? = nil) throws -> VaultOpenResult {
+    static func openURL(
+        target: String,
+        browser: String? = nil,
+        sameTab: Bool = false
+    ) throws -> VaultOpenResult {
         try target.withCString { targetPointer in
             if let browser {
                 return try browser.withCString { browserPointer in
-                    try decode(ffiOpenURL(nil, targetPointer, browserPointer, false))
+                    try decode(ffiOpenURL(nil, targetPointer, browserPointer, sameTab, false))
                 }
             }
-            return try decode(ffiOpenURL(nil, targetPointer, nil, false))
+            return try decode(ffiOpenURL(nil, targetPointer, nil, sameTab, false))
         }
     }
 
