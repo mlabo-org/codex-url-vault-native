@@ -7,7 +7,7 @@
 ## Project Identity And Source Boundary
 
 - このrepositoryは`codex-url-vault-native`という独立projectである。内部plugin identityの`codex-url-vault`、互換data、類似機能を理由に、非native `codex-url-vault` projectのsource、commit、branch、tag、remote、release、issue、pull requestを混在させない。
-- Rust、SwiftUI、Brave extension、Native Messaging Host、public plugin packageの正本はこのrepositoryとする。
+- Rust、SwiftUI、Brave/Chrome extension、Native Messaging Host、public plugin packageの正本はこのrepositoryとする。
 - `~/.codex/plugins/cache/`、`~/.claude/plugins/cache/`、installed app、`~/.codex/url-vault`、SQLite、bookmark HTML、snapshot、socket、`target/`、`dist/`、`macos/.build/`はruntimeまたはgenerated artifactであり、一次編集先やGitHub公開sourceにしない。
 - GitHub公開先は同一identityの`mlabo-org/codex-url-vault-native`だけとし、非native repositoryを上書き、rename、履歴統合して代用しない。
 
@@ -21,10 +21,10 @@
 
 - Rust sourceを変更した場合は、変更surfaceを含む`cargo test --workspace`を実行する。
 - plugin MCP launcherを変更した場合は、isolated temporary app pathにfake executableを置き、`CODEX_URL_VAULT_APP_PATH`でそのbinaryを起動できることをsmoke確認する。既定pathのportable性はsource内の特定ユーザーabsolute pathゼロ一致とRust path-resolution testで確認する。
-- Brave extensionまたはhost manifest contractを変更した場合は`node scripts/validate-brave-extension.mjs`を実行する。
+- Brave または Chrome extension（`extension/brave/`、`extension/chrome/`）またはhost manifest contractを変更した場合は`node scripts/validate-brave-extension.mjs`（両browserを検査する）を実行する。
 - plugin manifest、MCP config、marketplace metadataを変更した場合は、Codex側はplugin creatorのvalidatorとmarketplace validator、Claude Code側は`claude plugin validate`（pluginとmarketplaceの両方）を同じacceptance bundleで実行する。
 - SwiftUI sourceまたはapp packagingを変更した場合は`./scripts/build-release.sh`をrunnable app acceptanceとして使う。
-- source completion、Git commit、GitHub push、plugin refresh、app installation、Brave extension loading、Native Messaging registration、runtime activationは別actionとする。現在の明示範囲に含まれない後段を推定実行しない。
+- source completion、Git commit、GitHub push、plugin refresh、app installation、browser extension loading、Native Messaging registration、runtime activationは別actionとする。現在の明示範囲に含まれない後段を推定実行しない。Claude Code でローカルの clone から追加した marketplace には plugin refresh の段階がなく、`plugin/codex-url-vault/` の変更は次のセッション開始か `/reload-plugins` で有効になる。
 
 ## Maintenance Gates
 
