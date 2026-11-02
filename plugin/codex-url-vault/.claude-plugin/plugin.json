@@ -1,0 +1,11 @@
+{
+  "name": "codex-url-vault",
+  "description": "Local URL library with task-oriented MCP tools for saved links, Brave or Chrome current-page capture, a native macOS app, and an in-agent Viewer for Codex and Claude Code.",
+  "author": {
+    "name": "Suzuki Makoto"
+  },
+  "homepage": "https://github.com/mlabo-org/codex-url-vault-native",
+  "repository": "https://github.com/mlabo-org/codex-url-vault-native",
+  "license": "MIT",
+  "keywords": ["url-vault", "bookmarks", "saved-links", "mcp", "macos"]
+}

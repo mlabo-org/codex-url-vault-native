@@ -105,7 +105,17 @@ codex plugin marketplace add mlabo-org/codex-url-vault-native --ref main
 codex plugin add codex-url-vault@codex-url-vault-native-marketplace
 ```
 
-Claude Code では同じ `plugin/codex-url-vault/` を `suzuki-local-plugins` marketplace から読み込みます。source の変更は `~/.claude/local-plugins/bin/claude-plugin-refresh codex-url-vault --execute` で反映し、新しい session で有効になります。
+Claude Code では同じ `plugin/codex-url-vault/` を、この repository の marketplace（`.claude-plugin/marketplace.json`）から install します。
+
+```bash
+claude plugin marketplace add mlabo-org/codex-url-vault-native
+```
+
+```bash
+claude plugin install codex-url-vault@codex-url-vault-native-marketplace
+```
+
+手元の clone を使う場合は、repository root で `claude plugin marketplace add .` を実行します。install 後は新しい session で有効になります。新しい版を取り込むときは `claude plugin marketplace update codex-url-vault-native-marketplace` のあとに `claude plugin update codex-url-vault@codex-url-vault-native-marketplace` を実行します。
 
 plugin を呼び出す前に native app を build・install してください。plugin launcher は install 済み app 内の native MCP binary を起動するだけで、SQLite 処理や fallback implementation は持ちません。
 
@@ -281,7 +291,17 @@ codex plugin marketplace add mlabo-org/codex-url-vault-native --ref main
 codex plugin add codex-url-vault@codex-url-vault-native-marketplace
 ```
 
-In Claude Code, the same `plugin/codex-url-vault/` is loaded from the `suzuki-local-plugins` marketplace. Apply a source change with `~/.claude/local-plugins/bin/claude-plugin-refresh codex-url-vault --execute`, then start a new session.
+In Claude Code, install the same `plugin/codex-url-vault/` from this repository's marketplace (`.claude-plugin/marketplace.json`):
+
+```bash
+claude plugin marketplace add mlabo-org/codex-url-vault-native
+```
+
+```bash
+claude plugin install codex-url-vault@codex-url-vault-native-marketplace
+```
+
+To use a local clone instead, run `claude plugin marketplace add .` from the repository root. Start a new session after installing. To pick up a newer version, run `claude plugin marketplace update codex-url-vault-native-marketplace`, then `claude plugin update codex-url-vault@codex-url-vault-native-marketplace`.
 
 Build and install the native app before invoking the plugin. The plugin launcher only starts the native MCP binary inside the installed app; it does not implement Vault operations, SQLite access, or a fallback backend.
 

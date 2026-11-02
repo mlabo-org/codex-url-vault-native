@@ -1,0 +1,18 @@
+{
+  "name": "codex-url-vault-native-marketplace",
+  "owner": {
+    "name": "mlabo-org",
+    "url": "https://github.com/mlabo-org"
+  },
+  "metadata": {
+    "description": "Claude Code marketplace for the native macOS Codex URL Vault plugin."
+  },
+  "plugins": [
+    {
+      "name": "codex-url-vault",
+      "source": "./plugin/codex-url-vault",
+      "description": "Local URL library with task-oriented MCP tools for saved links and Brave or Chrome current-page capture. Requires Codex URL Vault.app installed in ~/Applications.",
+      "category": "productivity"
+    }
+  ]
+}

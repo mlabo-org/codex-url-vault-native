@@ -14,7 +14,7 @@
 ## Portable Runtime Contract
 
 - shipped sourceに特定ユーザーのhome absolute pathを固定しない。既定app pathは`$HOME/Applications/Codex URL Vault.app`から解決し、`CODEX_URL_VAULT_APP_PATH`だけを明示overrideとして扱う。
-- tracked Brave Native Messaging manifestはportable templateとする。実登録には`url-vault-native-host --print-brave-manifest <absolute-host-path>`が生成したmanifestを使い、template placeholderをそのまま登録しない。
+- tracked Native Messaging manifestはportable templateとする。実登録には`url-vault-native-host --install-browser <brave|chrome>`、または`url-vault-native-host --print-browser-manifest <brave|chrome> <absolute-host-path>`が生成したmanifestを使い、template placeholderをそのまま登録しない。
 - plugin MCP launcherはinstalled app内のnative binaryを`exec`する薄い起動境界だけを所有し、Vault処理、fallback実装、SQLite操作を持たない。
 
 ## Verification And Operational Boundaries
