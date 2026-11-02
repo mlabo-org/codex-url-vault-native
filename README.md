@@ -115,7 +115,7 @@ claude plugin marketplace add mlabo-org/codex-url-vault-native
 claude plugin install codex-url-vault@codex-url-vault-native-marketplace
 ```
 
-手元の clone を使う場合は、repository root で `claude plugin marketplace add .` を実行します。install 後は新しい session で有効になります。新しい版を取り込むときは `claude plugin marketplace update codex-url-vault-native-marketplace` のあとに `claude plugin update codex-url-vault@codex-url-vault-native-marketplace` を実行します。
+手元の clone を使う場合は、repository root で `claude plugin marketplace add .` を実行します。install 後は新しい session で有効になります。手元の clone から入れた場合は plugin をその場で読み込むので、変更は次の session 開始か `/reload-plugins` で効きます。GitHub から入れた場合は、新しい版を取り込むときに `claude plugin marketplace update codex-url-vault-native-marketplace` のあとに `claude plugin update codex-url-vault@codex-url-vault-native-marketplace` を実行します。
 
 plugin を呼び出す前に native app を build・install してください。plugin launcher は install 済み app 内の native MCP binary を起動するだけで、SQLite 処理や fallback implementation は持ちません。
 
@@ -301,7 +301,7 @@ claude plugin marketplace add mlabo-org/codex-url-vault-native
 claude plugin install codex-url-vault@codex-url-vault-native-marketplace
 ```
 
-To use a local clone instead, run `claude plugin marketplace add .` from the repository root. Start a new session after installing. To pick up a newer version, run `claude plugin marketplace update codex-url-vault-native-marketplace`, then `claude plugin update codex-url-vault@codex-url-vault-native-marketplace`.
+To use a local clone instead, run `claude plugin marketplace add .` from the repository root. Start a new session after installing. A local-clone install loads the plugin in place, so edits take effect at the next session start or `/reload-plugins`. For a GitHub install, pick up a newer version with `claude plugin marketplace update codex-url-vault-native-marketplace`, then `claude plugin update codex-url-vault@codex-url-vault-native-marketplace`.
 
 Build and install the native app before invoking the plugin. The plugin launcher only starts the native MCP binary inside the installed app; it does not implement Vault operations, SQLite access, or a fallback backend.
 
