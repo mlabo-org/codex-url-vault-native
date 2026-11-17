@@ -166,6 +166,10 @@ advanced usage として manifest だけを標準出力へ生成する場合は�
 
 両 browser package の stable extension ID は `fhijpanhohijhimeiajdgfhcpipbhkkh` です。popup は active tab の URL と title を読み込み、カテゴリ、タグ、メモとともに保存できます。context menu は現在の page または選択 link を保存します。
 
+2つの package の違いは、extension が自分を名乗る名前（`browser-config.js` の `id` と表示名、`manifest.json` の名前と説明）だけで、code、permission、extension ID は同じです。そのため Brave 版を Chrome に、Chrome 版を Brave に読み込んでも動きますが、extension は読み込まれた browser ではなく package の名前を名乗ります。たとえば Brave 版を Chrome に入れると、保存した URL の `source_browser` は `brave` と記録され、`save_current_browser_page` に `browser: "chrome"` を指定した依頼は browser の不一致として断られます。混乱を避けるため、使う browser と同じ名前の package を読み込んでください。
+
+Native Messaging の bridge は1つの browser だけが使う前提です。両方の browser に extension を入れて同時に起動しても、つながるのは先に bridge を開いた方だけで、後の方は bridge が既に動いているという error になります。
+
 `save_current_browser_page` は user-only Unix socket と Native Messaging Host を経由し、選択した foreground browser の active tab から URL と title を取得します。`http`／`https` 以外、browser の不一致、tab の変更、bridge 切断時には推測や別 route への fallback を行わず error を返します。
 
 ### データと portability
@@ -351,6 +355,10 @@ When developing directly from a source checkout, you can choose `extension/brave
 For advanced use, print a manifest to stdout with `"$HOST" --print-browser-manifest brave "$HOST"`, substituting `chrome` when needed. The tracked `extension/native-host/com.suzukimakoto.codex_url_vault.json` is a portable template; do not register the placeholder-bearing template unchanged.
 
 Both browser packages use the stable extension ID `fhijpanhohijhimeiajdgfhcpipbhkkh`. The popup reads the active tab URL and title and saves them with an optional category, tags, and note. The context menu saves the current page or a selected link.
+
+The two packages differ only in the name the extension reports for itself (`id` and display name in `browser-config.js`, plus the name and description in `manifest.json`); the code, permissions, and extension ID are the same. Either package therefore works in either browser, but the extension reports its package name, not the browser it is loaded in. For example, with the Brave package loaded in Chrome, saved URLs record `source_browser` as `brave`, and a `save_current_browser_page` request with `browser: "chrome"` is rejected as a browser mismatch. To avoid confusion, load the package named after the browser you use.
+
+The Native Messaging bridge is meant for one browser at a time. If both browsers have the extension and run together, only the one that opened the bridge first connects; the other gets a bridge-already-running error.
 
 `save_current_browser_page` obtains the URL and title from the selected foreground browser through a user-only Unix socket and the Native Messaging Host. Non-`http`/`https` pages, browser mismatches, changed tabs, and disconnected bridges return an error without URL inference or fallback capture.
 
