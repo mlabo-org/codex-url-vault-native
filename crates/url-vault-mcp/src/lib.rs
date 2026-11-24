@@ -198,6 +198,7 @@ fn in_app_browser(host: AgentHost) -> &'static str {
     match host {
         AgentHost::Codex => "Codex Browser/IAB",
         AgentHost::ClaudeCode => "the Claude Code built-in browser pane",
+        AgentHost::Antigravity => "the Antigravity built-in browser subagent",
     }
 }
 
@@ -208,6 +209,9 @@ fn show_iab_vault_description(host: AgentHost) -> &'static str {
         }
         AgentHost::ClaudeCode => {
             "Start or reuse the authenticated localhost card-based Vault viewer and return its viewerUrl. Open that URL in the Claude Code built-in browser pane with mcp__Claude_Browser__preview_start (url) or mcp__Claude_Browser__navigate; this tool does not navigate the browser itself."
+        }
+        AgentHost::Antigravity => {
+            "Start or reuse the authenticated localhost card-based Vault viewer and return its viewerUrl. Open that URL in the Antigravity built-in browser subagent; this tool does not navigate the browser itself."
         }
     }
 }
@@ -378,6 +382,7 @@ fn tool_records(host: AgentHost) -> Vec<Value> {
             action_annotations(match host {
                 AgentHost::Codex => "Show URL Vault in Codex Browser",
                 AgentHost::ClaudeCode => "Show URL Vault in Claude Code browser pane",
+                AgentHost::Antigravity => "Show URL Vault in Antigravity browser",
             }),
         ),
     ]

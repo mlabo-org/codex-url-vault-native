@@ -63,7 +63,11 @@ const LEGACY_THEME_KEY = "bookmarkVaultTheme";
 const THEMES = ["system", "light", "dark"];
 const LANGUAGES = ["system", "ja", "en"];
 const MAX_IMPORT_FILE_BYTES = 20 * 1024 * 1024;
-const AGENT_HOST = document.documentElement.dataset.agentHost === "claude_code" ? "claude_code" : "codex";
+const AGENT_HOST = document.documentElement.dataset.agentHost === "claude_code"
+  ? "claude_code"
+  : document.documentElement.dataset.agentHost === "antigravity"
+    ? "antigravity"
+    : "codex";
 let editingCategoryPath = null;
 const importState = {
   step: 1,
@@ -343,6 +347,20 @@ const HOST_MESSAGES = {
       iab: "Open here",
     },
   },
+  antigravity: {
+    ja: {
+      brandSubtitle: "Antigravity用のローカルURL保管庫",
+      promptSamples: "Antigravityへの依頼例",
+      promptSamplesHelp: "Antigravityには自然な言葉で依頼できます。スキル呼び出し記法やMCPツール名の入力は不要です。各例には、プラグインが内部で選ぶ主なMCPルートを併記しています。",
+      iab: "ここで開く",
+    },
+    en: {
+      brandSubtitle: "Local URL preservation for Antigravity",
+      promptSamples: "Example requests for Antigravity",
+      promptSamplesHelp: "Ask Antigravity in natural language. You do not need to enter a skill invocation or MCP tool name. Each example also shows the main MCP route the plugin selects internally.",
+      iab: "Open here",
+    },
+  },
 };
 let preferences = readPreferences();
 const PROMPT_SAMPLES = [
@@ -357,11 +375,17 @@ const PROMPT_SAMPLES = [
       route: "show_iab_vault → Claude Code browser pane",
       prompt: { ja: "Codex URL VaultをClaude Codeのブラウザペインでカード表示して。", en: "Open Codex URL Vault as a card view in the Claude Code browser pane." },
     }
-    : {
-      title: { ja: "Codex内でカード表示する", en: "Show the card view inside Codex" },
-      route: "show_iab_vault → Codex Browser",
-      prompt: { ja: "Codex URL VaultをCodex内のカード表示で開いて。", en: "Open Codex URL Vault as a card view inside Codex." },
-    },
+    : AGENT_HOST === "antigravity"
+      ? {
+        title: { ja: "Antigravityのブラウザでカード表示する", en: "Show the card view in the Antigravity browser" },
+        route: "show_iab_vault → Antigravity browser",
+        prompt: { ja: "Codex URL VaultをAntigravityのブラウザでカード表示して。", en: "Open Codex URL Vault as a card view in the Antigravity browser." },
+      }
+      : {
+        title: { ja: "Codex内でカード表示する", en: "Show the card view inside Codex" },
+        route: "show_iab_vault → Codex Browser",
+        prompt: { ja: "Codex URL VaultをCodex内のカード表示で開いて。", en: "Open Codex URL Vault as a card view inside Codex." },
+      },
   {
     title: { ja: "詳細を付けてURLを保存する", en: "Save a URL with details" },
     route: "save_url",

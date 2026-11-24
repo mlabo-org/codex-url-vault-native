@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "codex-url-vault": {
+      "command": "/bin/sh",
+      "args": [
+        "-c",
+        "if [ -n \"${PLUGIN_ROOT:-}\" ]; then cd \"${PLUGIN_ROOT}\" || exit 1; fi; exec /bin/sh ./bin/url-vault-mcp-launcher"
+      ],
+      "env": {
+        "AGENT_HOST": "antigravity"
+      }
+    }
+  }
+}

@@ -407,7 +407,7 @@ fn reader_response(request_url: &Url, host: AgentHost) -> Result<HttpResponse, V
             AgentHost::Codex => {
                 "<p>No readable text was extracted. Use Open IAB or your default browser for the original page.</p>"
             }
-            AgentHost::ClaudeCode => {
+            AgentHost::ClaudeCode | AgentHost::Antigravity => {
                 "<p>No readable text was extracted. Use Open here or your default browser for the original page.</p>"
             }
         }
